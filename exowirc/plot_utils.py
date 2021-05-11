@@ -130,13 +130,14 @@ def tripleplot(plot_dir, dump_dir, x, ys, yerrs, compars, new_map,
 	#plotting light curve and residuals, unbinned and binned
 	ax[0].errorbar(x_fold, detrended_data, yerr = true_err,
 		color = 'k', marker = '.', linestyle = 'None', alpha = 0.1)
-	ax[0].errorbar(bin_lc.time, bin_lc.flux, yerr = bin_lc.flux_err,
+	ax[0].errorbar(bin_lc.time.value, bin_lc.flux.value,
+		yerr = bin_lc.flux_err.value,
 		color = 'k', marker = '.', linestyle = 'None', ms = 5)
-	ax[1].errorbar(plot_resid.time, plot_resid.flux,
-		yerr = plot_resid.flux_err, color = 'k', marker = '.',
+	ax[1].errorbar(plot_resid.time.value, plot_resid.flux.value,
+		yerr = plot_resid.flux_err.value, color = 'k', marker = '.',
 		linestyle = 'None', alpha = 0.1)
-	ax[1].errorbar(bin_resid.time, bin_resid.flux,
-		yerr = bin_resid.flux_err, color = 'k', marker = '.',
+	ax[1].errorbar(bin_resid.time.value, bin_resid.flux.value,
+		yerr = bin_resid.flux_err.value, color = 'k', marker = '.',
 		linestyle = 'None', ms = 5)
 
 	#MAP wirc light curve

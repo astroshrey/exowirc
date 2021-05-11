@@ -4,6 +4,7 @@ from scipy.stats import sigmaclip
 from functools import reduce
 from astropy.io import fits
 from scipy.optimize import curve_fit
+from photutils.utils import calc_total_error
 import photutils
 import plot_utils
 import io_utils
@@ -542,14 +543,14 @@ def perform_photometry(calib_dir, dump_dir, img_dir, science_ranges,
 			bkg_error_array = construct_bkg(bkg_arr, 
 				bkgs[i], mcf)
 			bkg_error_array = np.sqrt(bkg_error_array/gain)
-			error = photutils.utils.errors.calc_total_error(image,
+			error = calc_total_error(image,
 				bkg_error_array, gain)
 		elif background_mode == 'global':
 			#error is sqrt(N)
 			bkg_arr = np.sqrt(bkg_arr)
 			bkg_errors = np.sqrt(bkgs/gain)
 			bkg_error_array = bkg_arr*bkg_errors[i]
-			error = photutils.utils.errors.calc_total_error(image,
+			error = calc_total_error(image,
 				bkg_error_array, gain)
 		else:
 			error = np.sqrt(image/gain)

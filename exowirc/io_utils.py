@@ -100,7 +100,7 @@ def get_img_name(direc, number, style = 'wirc', img_type = ''):
 	"""
 	num = str(number)
 	num_zeros = 4 - len(num)
-	if img_type is not '':
+	if img_type != '':
 		img_type = '_' + img_type
 	return direc + style + '0'*num_zeros + num + img_type + '.fits'
 
