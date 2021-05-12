@@ -61,11 +61,6 @@ def quick_aperture_optimize(dump_dir, plot_dir, apertures,
 		quick_detrend = ys[0]/weight_guess.dot(compars)
 		median_filter = medfilt(quick_detrend, filter_width)
 		filt = quick_detrend / median_filter
-		import matplotlib.pyplot as plt
-		plt.plot(x, ys[0], 'k.')
-		plt.xlabel("Time [BJD]")
-		plt.ylabel("Flux")
-		plt.show()
 		rmses.append(np.std(filt)/len(x))
 
 	plot_aperture_opt(plot_dir, apertures, rmses)
