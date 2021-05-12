@@ -6,8 +6,10 @@ from astropy.io import fits
 from scipy.optimize import curve_fit
 from photutils.utils import calc_total_error
 import photutils
-import plot_utils
-import io_utils
+
+from .plot_utils import plot_sources 
+from .io_utils import get_science_img_list, init_phot_dirs, load_calib_img, \
+	load_bkgs, load_multicomponent_frame, save_phot_data 
 
 def find_sources(image, fwhm = 20., sigma_threshold = 20.):
 	"""Using the photutils DAOStarFinder algorithm, automatically
@@ -492,12 +494,12 @@ def perform_photometry(calib_dir, dump_dir, img_dir, science_ranges,
 		centroids and widths
 	"""
 	#initializing dirs and finding frame 
-	to_extract = io_utils.get_science_img_list(science_ranges)
+	to_extract = get_science_img_list(science_ranges)
 	n_images = len(to_extract)
-	dump_dir_phot, img_dir_phot = io_utils.init_phot_dirs(dump_dir, img_dir,
+	dump_dir_phot, img_dir_phot = init_phot_dirs(dump_dir, img_dir,
 		extraction_rads)
 
-	finding_frame = io_utils.load_calib_img(calib_dir,
+	finding_frame = load_calib_img(calib_dir,
 		to_extract[0], style = style)
 
 	#getting list of sources
@@ -511,7 +513,7 @@ def perform_photometry(calib_dir, dump_dir, img_dir, science_ranges,
 		sources = clean_sources(sources, max_lengthscale,
 			bad_channel = bad_channel)
 		source_ind = find_my_source(sources, target_coords)
-		plot_utils.plot_sources(img_dir, finding_frame, sources,
+		plot_sources(img_dir, finding_frame, sources,
 			finding_fwhm, ann_rads)
 		n_sources = len(sources)
 	else:
@@ -530,15 +532,15 @@ def perform_photometry(calib_dir, dump_dir, img_dir, science_ranges,
 			with fits.open(bkg_fname) as hdul:
 				bkg_frame = hdul[0].data
 
-		bkgs = np.array(io_utils.load_bkgs(dump_dir))
+		bkgs = np.array(load_bkgs(dump_dir))
 
 	#performing the extraction	
 	for i, n_img in enumerate(to_extract):
 		print('Extracting image ', n_img)
-		image = io_utils.load_calib_img(calib_dir, n_img,
+		image = load_calib_img(calib_dir, n_img,
 			style = style)
 		if background_mode == 'helium':
-			mcf = io_utils.load_multicomponent_frame(
+			mcf = load_multicomponent_frame(
 				dump_dir)
 			bkg_error_array = construct_bkg(bkg_arr, 
 				bkgs[i], mcf)
@@ -579,7 +581,7 @@ def perform_photometry(calib_dir, dump_dir, img_dir, science_ranges,
 		img_dir_temp = img_dir_phot + str(rad) + '/'
 		dump_dir_temp = dump_dir_phot + str(rad) + '/'
 
-		fnames = io_utils.save_phot_data(dump_dir_temp,
+		fnames = save_phot_data(dump_dir_temp,
 			xpos_temp, ypos_temp, psf_widths_temp,
 			raw_phot, errs)
 	print('DATA SAVED; EXTRACTION COMPLETE')

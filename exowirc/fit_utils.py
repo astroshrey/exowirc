@@ -1,13 +1,15 @@
 import numpy as np
 import exoplanet as xo
-import lightkurve as lk
 import pymc3 as pm
 import pymc3_ext as pmx
 import arviz as az
+
 from scipy.signal import medfilt
 from astropy.stats import sigma_clip
-import io_utils
-import plot_utils
+
+from .io_utils import load_phot_data
+from .plot_utils import trace_plot, corner_plot, plot_aperture_opt, \
+	plot_quickfit, plot_covariates, plot_initial_map, tripleplot
 
 #TODO: a to_latex function that takes the arviz summary output and generates
 #table-ready latex strings
@@ -47,7 +49,7 @@ def quick_aperture_optimize(dump_dir, plot_dir, apertures,
 	rmses = []
 	for i in apertures:
 		x, ys, yerrs, _, _, _, _, _ = \
-			io_utils.load_phot_data(dump_dir, i)
+			load_phot_data(dump_dir, i)
 		compars= ys[1:]
 		weight_guess = np.array([0.5]*len(compars))
 
@@ -60,7 +62,7 @@ def quick_aperture_optimize(dump_dir, plot_dir, apertures,
 		filt = quick_detrend / median_filter
 		rmses.append(np.std(filt)/len(x))
 
-	plot_utils.plot_aperture_opt(plot_dir, apertures, rmses)
+	plot_aperture_opt(plot_dir, apertures, rmses)
 	best_ap = apertures[np.argmin(rmses)]
 	print(f"Complete! Optimal aperture is {best_ap} pixels.")
 
@@ -102,7 +104,7 @@ def fit_lightcurve(dump_dir, plot_dir, best_ap, background_mode,
 	
 	x_init, ys_init, yerrs_init, bkgs_init, centroid_x_init, \
 		centroid_y_init, airmass, widths = \
-		io_utils.load_phot_data(dump_dir, best_ap)
+		load_phot_data(dump_dir, best_ap)
 	compars_init = ys_init[1:]
 	weight_guess_init = np.array([0.5]*len(compars_init))
 
@@ -112,8 +114,8 @@ def fit_lightcurve(dump_dir, plot_dir, best_ap, background_mode,
 	cov_dict = get_covariates(bkgs_init, centroid_x_init, centroid_y_init,
 		airmass, widths, background_mode, mask)
 	covs = crossmatch_covariates(covariate_names, cov_dict)
-	plot_utils.plot_quickfit(plot_dir, x, ys, yerrs)
-	plot_utils.plot_covariates(plot_dir, x, covariate_names, covs)
+	plot_quickfit(plot_dir, x, ys, yerrs)
+	plot_covariates(plot_dir, x, covariate_names, covs)
 
 	weight_guess = np.array([0.5]*compars.shape[0] + [0]*len(covs)) 
 	compars = np.vstack((compars, *covs))
@@ -124,7 +126,7 @@ def fit_lightcurve(dump_dir, plot_dir, best_ap, background_mode,
 	model, map_soln = make_model(x, ys, yerrs, compars, weight_guess,
 		texp, r_star_prior, t0_prior, period_prior,
 		a_rs_prior, b_prior, ror_prior, jitter_prior, phase, ldc_val)
-	plot_utils.plot_initial_map(plot_dir, x, ys, yerrs, compars, map_soln)
+	plot_initial_map(plot_dir, x, ys, yerrs, compars, map_soln)
 	print("Initial MAP found!")
 	print("Sampling posterior...")
 	trace = sample_model(model, map_soln, tune, draws, target_accept)
@@ -133,10 +135,10 @@ def fit_lightcurve(dump_dir, plot_dir, best_ap, background_mode,
 	new_map = get_new_map(trace)
 	summary, varnames = gen_summary(plot_dir, trace, phase, ldc_val)
 	print("Making corner and trace plots...")
-	plot_utils.corner_plot(plot_dir, trace, varnames)
-	plot_utils.trace_plot(plot_dir, trace, varnames)
+	trace_plot(plot_dir, trace, varnames)
+	corner_plot(plot_dir, trace, varnames)
 	print("Visualizing fit...")
-	plot_utils.tripleplot(plot_dir, dump_dir, x, ys, yerrs, compars,
+	tripleplot(plot_dir, dump_dir, x, ys, yerrs, compars,
 		new_map, trace, phase = phase)
 	print("Fitting complete!")
 	return None	
@@ -191,7 +193,8 @@ def unpack_prior(name, prior_tuple):
 
 def make_model(x, ys, yerrs, compars, weight_guess, texp, r_star_prior,
 	t0_prior, period_prior, a_rs_prior, b_prior, ror_prior,
-	jitter_prior, phase = 'primary', ldc_val = None):
+	jitter_prior, phase = 'primary', ldc_val = None, gp = False,
+	sigma_prior = None, rho_prior = None):
 	##currently doing circular orbits ONLY
 
 	with pm.Model() as model:
@@ -225,22 +228,33 @@ def make_model(x, ys, yerrs, compars, weight_guess, texp, r_star_prior,
 			t = x, texp = texp), axis = -1) + 1.)
 
 		#systematics
-		comp_weights = pm.Uniform("weights", lower = -1., upper = 1.,
+		comp_weights = pm.Uniform("weights", -10., 10.,
 			testval = weight_guess, shape = len(weight_guess))
 		systematics = pm.math.dot(comp_weights, compars)
 
-		#baseline
-		vec = x - np.median(x)
-		base = pm.Uniform(f"baseline", -1, 1., shape = 2,
-			testval = [0., 0.])
-		baseline = base[0]*vec + base[1]
-
 		jitter = unpack_prior('jitter', jitter_prior)
-		full_model = baseline + systematics*lightcurve
 		full_variance = yerrs[0]**2 + jitter**2
+		
+		if not gp:
+			#baseline
+			vec = x - np.median(x)
+			base = pm.Uniform(f"baseline", -10, 10., shape = 2,
+				testval = [0., 0.])
+			baseline = base[0]*vec + base[1]
 
-		pm.Normal(f"obs", mu=full_model, sd=np.sqrt(full_variance),
-			observed=ys[0])
+			full_model = baseline + systematics*lightcurve
+			pm.Normal(f"obs", mu=full_model,
+				sd=np.sqrt(full_variance), observed=ys[0])
+
+		else:
+			y_gp = y[0] - systematics*lightcurve - baseline
+			sigma = unpack_prior('sigma', sigma_prior)
+			rho = unpack_prior('rho', rho_prior)
+			kernel = terms.Matern32Term(sigma = sigma, rho = rho)
+			gp = GaussianProcess(kernel, t = x,
+				diag = full_variance, quiet = True)
+			gp.marginal(f"obs_wirc_{i}", observed = y_gp)
+			pm.Deterministic(f"gp_pred_{i}", gp.predict(y_gp))
 
 		map_soln = model.test_point
 		map_soln = pmx.optimize(map_soln, [comp_weights,

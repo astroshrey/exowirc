@@ -7,7 +7,6 @@ setuptools.setup(
 	author = "Shreyas Vissapragada",
 	author_email = "svissapr@caltech.edu",
 	packages = setuptools.find_packages(),
-	packages = ["exowirc"],
 	license = "MIT",
 	install_requires=["numpy", "scipy", "astropy", "matplotlib", 
 		"opencv-python", "exoplanet", "lightkurve", "pymc3",

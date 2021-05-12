@@ -5,7 +5,9 @@ from astropy import time as ap_time, coordinates as coord, units as u
 from astropy.stats import median_absolute_deviation, sigma_clip, \
 	sigma_clipped_stats
 import cv2
-import io_utils
+
+from .io_utils import get_science_img_list, load_calib_files, \
+	get_img_name, save_image, save_multicomponent_frame, save_covariates
 
 ###User-facing###
 def calibrate_all(raw_dir, calib_dir, dump_dir, science_ranges, dark_ranges,
@@ -74,7 +76,7 @@ def calibrate_all(raw_dir, calib_dir, dump_dir, science_ranges, dark_ranges,
 
 	for i, science_range in enumerate(science_ranges):
 		science_range = [science_range]
-		to_calibrate = io_utils.get_science_img_list(science_range)
+		to_calibrate = get_science_img_list(science_range)
 		dark_index = 0
 		if len(darks) > 1:
 			dark_index = i
@@ -84,7 +86,7 @@ def calibrate_all(raw_dir, calib_dir, dump_dir, science_ranges, dark_ranges,
 			background_mode, correct_nonlinearity,
 			nonlinearity_fname, mcf, covariates)
 
-	io_utils.save_covariates(dump_dir, covariates)
+	save_covariates(dump_dir, covariates)
 
 	print("CALIBRATION COMPLETE")
 
@@ -141,12 +143,12 @@ def calibrate_sequence(raw_dir, calib_dir, science_sequence, flat, dark, bp, hp,
 		this will just be an empty array.
 	"""
 	flat, dark, bp, hp, nonlinearity_array, correct_nonlinearity = \
-		io_utils.load_calib_files(flat,dark,bp,hp,nonlinearity_fname)
+		load_calib_files(flat,dark,bp,hp,nonlinearity_fname)
 	with fits.open(bkg) as hdul:
 		background_frame = hdul[0].data
 	
 	for i in science_sequence:
-		image = io_utils.get_img_name(raw_dir, i, style = style) 
+		image = get_img_name(raw_dir, i, style = style) 
 		print(f"Reducing {image}...")
 		calib, covariates = calibrate_image(image, flat, dark, bp, hp,
 			correct_nonlinearity = correct_nonlinearity,
@@ -154,8 +156,8 @@ def calibrate_sequence(raw_dir, calib_dir, science_sequence, flat, dark, bp, hp,
 			destripe = destripe, background_mode = background_mode,
 			background_frame = background_frame,
 			multicomponent_frame = mcf, covariate_dict = covariates)
-		outname = io_utils.get_img_name(calib_dir, i, style = style)
-		io_utils.save_image(calib, outname)
+		outname = get_img_name(calib_dir, i, style = style)
+		save_image(calib, outname)
 
 	return covariates 
 
@@ -288,7 +290,7 @@ def make_combined_image(dirname, seq_start, seq_end, calibration = 'dark',
 	"""
 	zeros = '0'*(4 - len(str(seq_end)))
 
-	image_list = [io_utils.get_img_name(dirname, i, style = style) for \
+	image_list = [get_img_name(dirname, i, style = style) for \
 		i in range(seq_start, seq_end + 1)]
 	stack = np.zeros([2048, 2048, len(image_list)])
 	for i,name in enumerate(image_list):
@@ -309,19 +311,19 @@ def make_combined_image(dirname, seq_start, seq_end, calibration = 'dark',
 		hp = get_hot_px(stack) 
 		bpname = f'{dirname}{style}{zeros}{seq_end}'
 		bpname += f'_combined_hp_map_test.fits'
-		io_utils.save_image(hp, bpname)
+		save_image(hp, bpname)
 	else:
 		print("Generating bad pixel map...")
 		bp = get_bad_px(combined)
 		bpname = f'{dirname}{style}{zeros}{seq_end}'
 		bpname += f'_combined_bp_map_test.fits'
-		io_utils.save_image(bp, bpname)
+		save_image(bp, bpname)
 		bp = np.array(bp, dtype = 'bool')
 		med = np.nanmedian(combined[~bp])
 		combined = combined/med
 	savename = f'{dirname}{style}{zeros}{seq_end}'
 	savename += f'_combined_{calibration}.fits'
-	io_utils.save_image(combined, savename)
+	save_image(combined, savename)
 	return savename, bpname
 
 def get_hot_px(dark_stack, sig_hot_pix = 5):
@@ -368,10 +370,10 @@ def make_calibrated_bkg_image(data_dir, calib_dir, bkg_seq, dark_ranges,
 	sigma_upper = 3, plot = False, remake_bkg = False,
 	remake_darks_and_flats = False):
 
-	image_list = [io_utils.get_img_name(data_dir, i,
+	image_list = [get_img_name(data_dir, i,
 		style = naming_style) for \
 		i in range(bkg_seq[0], bkg_seq[1] + 1)]
-	imname = io_utils.get_img_name(calib_dir, bkg_seq[-1],
+	imname = get_img_name(calib_dir, bkg_seq[-1],
 		style = naming_style, img_type = 'calibrated_background_test')
 	if not remake_bkg:
 		try:
@@ -387,7 +389,7 @@ def make_calibrated_bkg_image(data_dir, calib_dir, bkg_seq, dark_ranges,
 	dark = darks[0]
 	hp = hps[0]
 	flat, dark, bp, hp, nonlinearity_array, correct_nonlinearity = \
-		io_utils.load_calib_files(flat,dark,bp,hp,nonlinearity_fname)
+		load_calib_files(flat,dark,bp,hp,nonlinearity_fname)
 	
 	i = 0
 	med_val = 0
@@ -408,7 +410,7 @@ def make_calibrated_bkg_image(data_dir, calib_dir, bkg_seq, dark_ranges,
 		i += 1
 
 	background = np.ma.median(clipped_ims, axis = -1)
-	io_utils.save_image(background.filled(0.), imname)
+	save_image(background.filled(0.), imname)
 	print("BACKGROUND FRAME CREATED")
 
 	return imname
@@ -543,7 +545,7 @@ def construct_multicomponent_frame(calib_dir, dump_dir, rstepsize = 10):
 			dist_tag = int(d // rstepsize) + 1
 			mcf[i,j] = dist_tag
 	print("Multicomponent frame constructed!")
-	io_utils.save_multicomponent_frame(mcf, dump_dir)	
+	save_multicomponent_frame(mcf, dump_dir)	
 	return mcf
 	
 def dist(p1, p2):

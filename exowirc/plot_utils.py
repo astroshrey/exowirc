@@ -95,6 +95,19 @@ def represent_noise_stats(dump_dir, new_map, resid, yerrs):
 	print("Number of points: ", npts, file = filename)
 	return None
 
+def corner_plot(plot_dir, samples, varnames):
+	corner.corner(samples, var_names = varnames)
+	plt.savefig(f'{plot_dir}cornerplt.pdf', dpi = 200,
+		bbox_inches = 'tight')
+	plt.close()
+	return None
+
+def trace_plot(plot_dir, data, varnames):
+	az.plot_trace(data, var_names = varnames)
+	plt.savefig(f'{plot_dir}traceplt.pdf')
+	plt.close()
+	return None
+
 def tripleplot(plot_dir, dump_dir, x, ys, yerrs, compars, new_map, 
 	trace, phase = 'primary', binsize = 5):
 
@@ -178,15 +191,4 @@ def tripleplot(plot_dir, dump_dir, x, ys, yerrs, compars, new_map,
 	plt.close()
 	return None
 
-def corner_plot(plot_dir, samples, varnames):
-	corner.corner(samples, var_names = varnames)
-	plt.savefig(f'{plot_dir}cornerplt.pdf', dpi = 200,
-		bbox_inches = 'tight')
-	plt.close()
-	return None
 
-def trace_plot(plot_dir, data, varnames):
-	az.plot_trace(data, var_names = varnames)
-	plt.savefig(f'{plot_dir}traceplt.pdf')
-	plt.close()
-	return None
