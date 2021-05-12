@@ -9,7 +9,6 @@ import cv2
 from .io_utils import get_science_img_list, load_calib_files, \
 	get_img_name, save_image, save_multicomponent_frame, save_covariates
 
-###User-facing###
 def calibrate_all(raw_dir, calib_dir, dump_dir, science_ranges, dark_ranges,
 	dark_for_flat_range, flat_range, destripe = True, style = 'wirc',
 	background_mode = None, bkg_filename = None,
@@ -43,17 +42,23 @@ def calibrate_all(raw_dir, calib_dir, dump_dir, science_ranges, dark_ranges,
 	flat_range : tuple of ints
 		a tuple (int1, int2) that defines a linear sequence of flats
 		from which a combined flat will be created
-	destripe : boolean
+	destripe : boolean, optional
 		flag that indicates whether raw images should be 'destriped'
 		(aka bias levels from each readout subtracted) or not
-	style : string
+	style : string, optional
 		the prefix for the image number. usually 'image' or 'wirc'
 		unless otherwise specified during observations
-	background mode : string or None
+	background mode : string or None, optional
 		either None, 'median', 'global', or 'helium' indicating the 
 		background subtraction procedure
-	bkg_filename : string
+	bkg_filename : string, optional
 		path to a reduced background frame
+	correct_nonlinearity : boolean, optional
+		whether or not to do nonlinearity correction on the data
+	remake_darks_and_flats : boolean, optional
+		whether or not to remake the darks and flats
+        nonlinearity_fname : string or None, optional
+		path to the file with the nonlinearity correction coefficients
 	
 	Returns
 	-------
