@@ -52,7 +52,7 @@ def quick_aperture_optimize(dump_dir, plot_dir, apertures,
 		x, ys, yerrs, _, _, _, _, _ = \
 			load_phot_data(dump_dir, i)
 		compars= ys[1:]
-		weight_guess = np.array([0.5]*len(compars))
+		weight_guess = np.array([1./len(compars)]*len(compars))
 
 		x, ys, yerrs, compars, _ = clean_up(
 			x, ys, yerrs, compars, weight_guess,
@@ -61,6 +61,11 @@ def quick_aperture_optimize(dump_dir, plot_dir, apertures,
 		quick_detrend = ys[0]/weight_guess.dot(compars)
 		median_filter = medfilt(quick_detrend, filter_width)
 		filt = quick_detrend / median_filter
+		import matplotlib.pyplot as plt
+		plt.plot(x, ys[0], 'k.')
+		plt.xlabel("Time [BJD]")
+		plt.ylabel("Flux")
+		plt.show()
 		rmses.append(np.std(filt)/len(x))
 
 	plot_aperture_opt(plot_dir, apertures, rmses)
@@ -99,7 +104,8 @@ def crossmatch_covariates(covariates, covariate_dict):
 
 def fit_lightcurve(dump_dir, plot_dir, best_ap, background_mode,
 	covariate_names,  texp, r_star_prior, t0_prior, period_prior,
-	a_rs_prior, b_prior, ror_prior, jitter_prior, tune = 1000, 
+	a_rs_prior, b_prior, jitter_prior, ror_prior = None,
+	fpfs_prior = None, tune = 1000, 
 	draws = 1500, target_accept = 0.99, phase = 'primary',
 	ldc_val = None, flux_cutoff = 0., end_num = 0,
 	gp = False, sigma_prior = None, rho_prior = None):
@@ -127,8 +133,8 @@ def fit_lightcurve(dump_dir, plot_dir, best_ap, background_mode,
 	##model in pymc3
 	model, map_soln = make_model(x, ys, yerrs, compars, weight_guess,
 		texp, r_star_prior, t0_prior, period_prior,
-		a_rs_prior, b_prior, ror_prior, jitter_prior, phase, ldc_val,
-		gp, sigma_prior, rho_prior)
+		a_rs_prior, b_prior, jitter_prior, phase, ror_prior,
+		fpfs_prior, ldc_val, gp, sigma_prior, rho_prior)
 	plot_initial_map(plot_dir, x, ys, yerrs, compars, map_soln, gp)
 	print("Initial MAP found!")
 	print("Sampling posterior...")
@@ -199,8 +205,9 @@ def unpack_prior(name, prior_tuple):
 	return func_dict[func](name, a, b)
 
 def make_model(x, ys, yerrs, compars, weight_guess, texp, r_star_prior,
-	t0_prior, period_prior, a_rs_prior, b_prior, ror_prior,
-	jitter_prior, phase = 'primary', ldc_val = None, gp = False,
+	t0_prior, period_prior, a_rs_prior, b_prior,
+	jitter_prior, phase = 'primary', ror_prior = None, fpfs_prior = None,
+	ldc_val = None, gp = False,
 	sigma_prior = None, rho_prior = None):
 	##currently doing circular orbits ONLY
 
