@@ -9,6 +9,7 @@ setuptools.setup(
 	packages = setuptools.find_packages(),
 	license = "MIT",
 	install_requires=["numpy", "scipy", "astropy", "matplotlib", 
-		"opencv-python", "exoplanet", "lightkurve", "pymc3",
+		"opencv-python", "celerite2", 
+		"exoplanet", "lightkurve", "pymc3",
 		"arviz", "photutils", "corner", "setuptools"]
 	)
