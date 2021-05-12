@@ -6,6 +6,7 @@ import arviz as az
 
 from scipy.signal import medfilt
 from astropy.stats import sigma_clip
+from celerite2.theano import terms, GaussianProcess
 
 from .io_utils import load_phot_data
 from .plot_utils import trace_plot, corner_plot, plot_aperture_opt, \
@@ -100,7 +101,8 @@ def fit_lightcurve(dump_dir, plot_dir, best_ap, background_mode,
 	covariate_names,  texp, r_star_prior, t0_prior, period_prior,
 	a_rs_prior, b_prior, ror_prior, jitter_prior, tune = 1000, 
 	draws = 1500, target_accept = 0.99, phase = 'primary',
-	ldc_val = None, flux_cutoff = 0., end_num = 0):
+	ldc_val = None, flux_cutoff = 0., end_num = 0,
+	gp = False, sigma_prior = None, rho_prior = None):
 	
 	x_init, ys_init, yerrs_init, bkgs_init, centroid_x_init, \
 		centroid_y_init, airmass, widths = \
@@ -125,34 +127,39 @@ def fit_lightcurve(dump_dir, plot_dir, best_ap, background_mode,
 	##model in pymc3
 	model, map_soln = make_model(x, ys, yerrs, compars, weight_guess,
 		texp, r_star_prior, t0_prior, period_prior,
-		a_rs_prior, b_prior, ror_prior, jitter_prior, phase, ldc_val)
-	plot_initial_map(plot_dir, x, ys, yerrs, compars, map_soln)
+		a_rs_prior, b_prior, ror_prior, jitter_prior, phase, ldc_val,
+		gp, sigma_prior, rho_prior)
+	plot_initial_map(plot_dir, x, ys, yerrs, compars, map_soln, gp)
 	print("Initial MAP found!")
 	print("Sampling posterior...")
 	trace = sample_model(model, map_soln, tune, draws, target_accept)
-	trace.to_netcdf(f'{dump_dir}posterior.nc')
+	trace.posterior.to_netcdf(f'{dump_dir}posterior.nc', engine='scipy')
 	print("Sampling complete!")
 	new_map = get_new_map(trace)
-	summary, varnames = gen_summary(plot_dir, trace, phase, ldc_val)
+	summary, varnames = gen_summary(plot_dir, trace, phase, ldc_val, gp)
 	print("Making corner and trace plots...")
 	trace_plot(plot_dir, trace, varnames)
 	corner_plot(plot_dir, trace, varnames)
 	print("Visualizing fit...")
 	tripleplot(plot_dir, dump_dir, x, ys, yerrs, compars,
-		new_map, trace, phase = phase)
+		new_map, trace, phase = phase, gp = gp)
 	print("Fitting complete!")
 	return None	
 
-def gen_summary(plot_dir, trace, phase, ldc_val):
+def gen_summary(plot_dir, trace, phase, ldc_val, gp = False):
 	if phase == 'primary':
 		varnames = ['t0', 'period', 'a_rs', 'b', 'ror',
-			'jitter', 'baseline', 'weights']
+			'jitter', 'weights']
 	else:
 		varnames = ['t_second', 'period', 'a_rs', 'b', 'fpfs',
-			'r_star', 'jitter', 'baseline', 'weights']
+			'r_star', 'jitter', 'weights']
 	if ldc_val is None:
 		varnames += ['u']
-	
+	if gp:
+		varnames += ['sigma', 'rho']
+	else:
+		varnames += ['baseline']
+
 	func_dict = {
 		"16%": lambda x: np.percentile(x, 16),
 		"50%": lambda x: np.percentile(x, 50),
@@ -247,18 +254,16 @@ def make_model(x, ys, yerrs, compars, weight_guess, texp, r_star_prior,
 				sd=np.sqrt(full_variance), observed=ys[0])
 
 		else:
-			y_gp = y[0] - systematics*lightcurve - baseline
+			y_gp = ys[0] - systematics*lightcurve
 			sigma = unpack_prior('sigma', sigma_prior)
 			rho = unpack_prior('rho', rho_prior)
 			kernel = terms.Matern32Term(sigma = sigma, rho = rho)
 			gp = GaussianProcess(kernel, t = x,
 				diag = full_variance, quiet = True)
-			gp.marginal(f"obs_wirc_{i}", observed = y_gp)
-			pm.Deterministic(f"gp_pred_{i}", gp.predict(y_gp))
+			gp.marginal(f"obs", observed = y_gp)
+			pm.Deterministic(f"gp_pred", gp.predict(y_gp))
 
 		map_soln = model.test_point
-		map_soln = pmx.optimize(map_soln, [comp_weights,
-			baseline, jitter])
 		map_soln = pmx.optimize(map_soln)
 
 		return model, map_soln

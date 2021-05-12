@@ -23,11 +23,14 @@ def plot_sources(img_dir, image, sources, fwhm, ann_rads):
 	plt.close()
 	return None
 
-def plot_initial_map(plot_dir, x, ys, yerrs, compars, map_soln):
+def plot_initial_map(plot_dir, x, ys, yerrs, compars, map_soln, gp = False):
 	lc = map_soln["light_curve"]
 	vec = x - np.median(x)
 	systematics = np.dot(map_soln["weights"], compars)
-	baseline = np.poly1d(map_soln["baseline"])(vec)
+	if gp:
+		baseline = map_soln["gp_pred"]
+	else:
+		baseline = np.poly1d(map_soln["baseline"])(vec)
 
 	detrended_data = (ys[0] - baseline)/systematics
 	true_err= np.sqrt(yerrs[0]**2 + map_soln["jitter"]**2)
@@ -109,7 +112,7 @@ def trace_plot(plot_dir, data, varnames):
 	return None
 
 def tripleplot(plot_dir, dump_dir, x, ys, yerrs, compars, new_map, 
-	trace, phase = 'primary', binsize = 5):
+	trace, phase = 'primary', binsize = 5, gp = False):
 
 	matplotlib.rcParams['mathtext.fontset'] = 'cm'
 	matplotlib.rcParams['font.family'] = 'STIXGeneral'
@@ -120,7 +123,11 @@ def tripleplot(plot_dir, dump_dir, x, ys, yerrs, compars, new_map,
 	#MAP lightcurve and reduction
 	systematics = np.dot(np.array(new_map[f"weights"]), compars)
 	vec = x - np.median(x)
-	baseline = np.poly1d(np.array(new_map[f'baseline']))(vec)
+	if gp:
+		baseline = np.array(new_map['gp_pred'])
+	else:
+		baseline = np.poly1d(np.array(new_map[f'baseline']))(vec)
+
 	detrended_data = (ys[0] - baseline)/systematics
 	lc = np.array(new_map[f'light_curve'])
 	true_err = np.sqrt(yerrs[0]**2 + float(new_map[f"jitter"])**2)
@@ -130,6 +137,9 @@ def tripleplot(plot_dir, dump_dir, x, ys, yerrs, compars, new_map,
 		x_fold = (x - map_t0 + 0.5 * map_p) % map_p - 0.5 * map_p
 	else:
 		x_fold = (x - map_t0) % map_p - 0.5 * map_p
+
+	if gp:
+		ax[0].plot(x_fold, 1+baseline, 'b-')
 
 	#setting the light curves for plotting and residuals
 	plot_lc = lk.LightCurve(time = x_fold, flux = detrended_data,
