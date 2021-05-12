@@ -13,7 +13,7 @@ def calibrate_all(raw_dir, calib_dir, dump_dir, science_ranges, dark_ranges,
 	dark_for_flat_range, flat_range, destripe = True, style = 'wirc',
 	background_mode = None, bkg_filename = None,
 	correct_nonlinearity = False, remake_darks_and_flats = False,
-	nonlinearity_fname = None):
+	nonlinearity_fname = None, mask_channels = []):
 	"""Calibrates all science images. 
 	
 	Parameters
@@ -89,7 +89,8 @@ def calibrate_all(raw_dir, calib_dir, dump_dir, science_ranges, dark_ranges,
 			to_calibrate, flat, darks[dark_index], bp,
 			hps[dark_index], bkg_filename, destripe, style,
 			background_mode, correct_nonlinearity,
-			nonlinearity_fname, mcf, covariates)
+			nonlinearity_fname, mcf, covariates,
+			mask_channels)
 
 	save_covariates(dump_dir, covariates)
 
@@ -99,7 +100,7 @@ def calibrate_all(raw_dir, calib_dir, dump_dir, science_ranges, dark_ranges,
 
 def calibrate_sequence(raw_dir, calib_dir, science_sequence, flat, dark, bp, hp,
 	bkg, destripe, style, background_mode, correct_nonlinearity,
-	nonlinearity_fname, mcf, covariates):
+	nonlinearity_fname, mcf, covariates, mask_channels):
 	"""Calibrates all images in a science sequence.
 	
 	Parameters
@@ -160,7 +161,9 @@ def calibrate_sequence(raw_dir, calib_dir, science_sequence, flat, dark, bp, hp,
 			nonlinearity_array = nonlinearity_array,
 			destripe = destripe, background_mode = background_mode,
 			background_frame = background_frame,
-			multicomponent_frame = mcf, covariate_dict = covariates)
+			multicomponent_frame = mcf,
+			covariate_dict = covariates,
+			mask_channels = mask_channels)
 		outname = get_img_name(calib_dir, i, style = style)
 		save_image(calib, outname)
 
@@ -437,7 +440,7 @@ def get_bjd(header):
 def calibrate_image(im_name, flat, dark, bp, hp, correct_nonlinearity = False,
 	nonlinearity_array = None, destripe = False, background_mode = None,
 	background_frame = None, multicomponent_frame = None,
-	covariate_dict = None):
+	covariate_dict = None, mask_channels = []):
 	"image is file flat dark are numpy arrays"
 	with fits.open(im_name) as hdul:
 		hdu = hdul[0]
@@ -452,7 +455,9 @@ def calibrate_image(im_name, flat, dark, bp, hp, correct_nonlinearity = False,
 	cleaned = clean_bad_pix(corr, bad_px_map)
 	cleaned[~np.isfinite(cleaned)] = 0.
 	retval = None
-	
+	if len(mask_channels) > 0:
+		cleaned = mask_bad_channels(cleaned, mask_channels)
+
 	if background_mode == 'median':
 		#simple sigma-clipped median removal
 		_, med, _ = sigma_clipped_stats(cleaned.flatten())
@@ -468,10 +473,10 @@ def calibrate_image(im_name, flat, dark, bp, hp, correct_nonlinearity = False,
 	elif background_mode == 'helium':
 		#requires multicomponent frame and reduced background frame
 		cleaned, retval = helium_background_subtraction(cleaned,
-			background_frame, multicomponent_frame)
+			background_frame, multicomponent_frame)	
+	
 	if destripe:
 		cleaned = destripe_image(cleaned)
-
 
 	if covariate_dict is not None:
 		for covariate in covariate_dict.keys():
@@ -485,6 +490,27 @@ def calibrate_image(im_name, flat, dark, bp, hp, correct_nonlinearity = False,
 					header[covariate])
 
 	return cleaned, covariate_dict
+
+def mask_bad_channels(cleaned, to_mask):
+	"""channel labeling: bottom left quad, bottom to top = 0-7
+	top right, bottom to top = 8-15
+	top left, left to right = 16-23
+	bottom right, left to right = 24-31
+
+	ordering is basically all horizontal channels bottom to top,
+	then all vertical channels left to right"""
+	for channel in to_mask:
+		c = channel % 16
+		xs = (0, 1024) if c < 8 else (1024, 2048)
+		ys = (c*128, (c+1)*128)
+		if channel > 16:
+			xs = ys
+			ys = (1024, 2048) if c < 8 else (0, 1024)
+
+		cleaned[ys[0]:ys[1], xs[0]:xs[1]] = np.nan
+
+	return cleaned
+		
 
 def helium_background_subtraction(cleaned, background_frame,
 	multicomponent_frame):
@@ -511,14 +537,22 @@ def destripe_image(image, sigma = 3, iters=5):
 	of each row/column from each sector.
 	This will work best after you subtract a background sky image.
 
-	legacy code from WIRC+Pol"""
+	legacy code from WIRC+Pol; updated by Shreyas"""
 
-	quad1 = image[:1024,:1024]
-	quad2 = np.rot90(image[1024:,:1024], k=3, axes=(0, 1))
-	quad3 = np.rot90(image[1024:,1024:], k=2, axes=(0, 1))
-	quad4 = np.rot90(image[:1024,1024:], k=1, axes=(0, 1))
-	mn_quad = np.median([quad1,quad2,quad3,quad4],axis=0)
+	quads = []
 	clean_imm = np.array(image)
+
+	for i in range(4):
+		k = 4 - i
+		xr = (0, 1024) if i == 0 or i == 3 else (1024, 2048)
+		yr = (0, 1024) if i == 0 or i == 1 else (1024, 2048)
+		quad = image[xr[0]:xr[1], yr[0]:yr[1]]
+		quad = np.rot90(quad, k = k, axes = (0, 1))
+		quadm = sigma_clip(quad, sigma = 5)
+		quad[quadm.mask] = np.nan
+		quads.append(quad)
+
+	mn_quad = np.nanmedian(quads, axis=0)
 
 	for i in range(1024):
 		to_sub = sigma_clipped_stats(
