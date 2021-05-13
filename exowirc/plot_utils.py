@@ -23,17 +23,23 @@ def plot_sources(img_dir, image, sources, fwhm, ann_rads):
 	plt.close()
 	return None
 
-def plot_initial_map(plot_dir, x, ys, yerrs, compars, map_soln, gp = False):
+def plot_initial_map(plot_dir, x, ys, yerrs, compars, map_soln, gp = False,
+	baseline_off = False):
 	lc = map_soln["light_curve"]
 	vec = x - np.median(x)
 	systematics = np.dot(map_soln["weights"], compars)
 	if gp:
 		baseline = map_soln["gp_pred"]
+	elif baseline_off:
+		baseline = 0.
 	else:
 		baseline = np.poly1d(map_soln["baseline"])(vec)
-
+	
 	detrended_data = (ys[0] - baseline)/systematics
 	true_err= np.sqrt(yerrs[0]**2 + map_soln["jitter"]**2)
+
+	scatter = detrended_data - lc
+	print('RMS scatter in MAP: ', np.std(scatter)*1e6, 'ppm')
 
 	plt.errorbar(x, detrended_data, yerr = true_err,
 		color = 'k', marker = '.', linestyle = 'None')
@@ -43,7 +49,8 @@ def plot_initial_map(plot_dir, x, ys, yerrs, compars, map_soln, gp = False):
 	return None
 
 def plot_quickfit(plot_dir, x, ys, yerrs):
-	plt.plot(x, ys[0]/np.mean(ys[1:], axis = 0))
+	plt.errorbar(x, ys[0]/np.mean(ys[1:], axis = 0), yerr = yerrs[0],
+		marker = '.', linestyle = 'None')
 	plt.xlabel("Time [BJD]")
 	plt.ylabel("Normalized Flux (Quick Detrend)")
 	plt.savefig(f'{plot_dir}quickfit.png')
@@ -112,7 +119,8 @@ def trace_plot(plot_dir, data, varnames):
 	return None
 
 def tripleplot(plot_dir, dump_dir, x, ys, yerrs, compars, new_map, 
-	trace, phase = 'primary', binsize = 5, gp = False):
+	trace, phase = 'primary', binsize = 5, gp = False,
+	baseline_off = False):
 
 	matplotlib.rcParams['mathtext.fontset'] = 'cm'
 	matplotlib.rcParams['font.family'] = 'STIXGeneral'
@@ -125,6 +133,8 @@ def tripleplot(plot_dir, dump_dir, x, ys, yerrs, compars, new_map,
 	vec = x - np.median(x)
 	if gp:
 		baseline = np.array(new_map['gp_pred'])
+	elif baseline_off:
+		baseline = 0.
 	else:
 		baseline = np.poly1d(np.array(new_map[f'baseline']))(vec)
 

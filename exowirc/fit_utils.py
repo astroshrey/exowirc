@@ -103,13 +103,14 @@ def fit_lightcurve(dump_dir, plot_dir, best_ap, background_mode,
 	fpfs_prior = None, tune = 1000, 
 	draws = 1500, target_accept = 0.99, phase = 'primary',
 	ldc_val = None, flux_cutoff = 0., end_num = 0,
-	gp = False, sigma_prior = None, rho_prior = None):
+	gp = False, sigma_prior = None, rho_prior = None,
+	baseline_off = False):
 	
 	x_init, ys_init, yerrs_init, bkgs_init, centroid_x_init, \
 		centroid_y_init, airmass, widths = \
 		load_phot_data(dump_dir, best_ap)
 	compars_init = ys_init[1:]
-	weight_guess_init = np.array([0.5]*len(compars_init))
+	weight_guess_init = np.array([1./len(compars_init)]*len(compars_init))
 
 	x, ys, yerrs, compars, mask = clean_up(x_init, ys_init, yerrs_init,
 		compars_init, weight_guess_init, flux_cutoff, end_num)	
@@ -120,34 +121,40 @@ def fit_lightcurve(dump_dir, plot_dir, best_ap, background_mode,
 	plot_quickfit(plot_dir, x, ys, yerrs)
 	plot_covariates(plot_dir, x, covariate_names, covs)
 
-	weight_guess = np.array([0.5]*compars.shape[0] + [0]*len(covs)) 
+	weight_guess = np.array([1./compars.shape[0]]*compars.shape[0] + \
+		[0]*len(covs)) 
 	compars = np.vstack((compars, *covs))
-		
+	
 	print("Constructing model...")
 
 	##model in pymc3
 	model, map_soln = make_model(x, ys, yerrs, compars, weight_guess,
 		texp, r_star_prior, t0_prior, period_prior,
 		a_rs_prior, b_prior, jitter_prior, phase, ror_prior,
-		fpfs_prior, ldc_val, gp, sigma_prior, rho_prior)
-	plot_initial_map(plot_dir, x, ys, yerrs, compars, map_soln, gp)
+		fpfs_prior, ldc_val, gp, sigma_prior, rho_prior,
+		baseline_off)
+	plot_initial_map(plot_dir, x, ys, yerrs, compars, map_soln, gp,
+		baseline_off)
 	print("Initial MAP found!")
 	print("Sampling posterior...")
 	trace = sample_model(model, map_soln, tune, draws, target_accept)
 	trace.posterior.to_netcdf(f'{dump_dir}posterior.nc', engine='scipy')
 	print("Sampling complete!")
 	new_map = get_new_map(trace)
-	summary, varnames = gen_summary(plot_dir, trace, phase, ldc_val, gp)
+	summary, varnames = gen_summary(plot_dir, trace, phase, ldc_val, gp,
+		baseline_off)
 	print("Making corner and trace plots...")
 	trace_plot(plot_dir, trace, varnames)
 	corner_plot(plot_dir, trace, varnames)
 	print("Visualizing fit...")
 	tripleplot(plot_dir, dump_dir, x, ys, yerrs, compars,
-		new_map, trace, phase = phase, gp = gp)
+		new_map, trace, phase = phase, gp = gp, 
+		baseline_off = baseline_off)
 	print("Fitting complete!")
 	return None	
 
-def gen_summary(plot_dir, trace, phase, ldc_val, gp = False):
+def gen_summary(plot_dir, trace, phase, ldc_val, gp = False,
+	baseline_off = False):
 	if phase == 'primary':
 		varnames = ['t0', 'period', 'a_rs', 'b', 'ror',
 			'jitter', 'weights']
@@ -158,7 +165,7 @@ def gen_summary(plot_dir, trace, phase, ldc_val, gp = False):
 		varnames += ['u']
 	if gp:
 		varnames += ['sigma', 'rho']
-	else:
+	elif baseline_off == False:
 		varnames += ['baseline']
 
 	func_dict = {
@@ -197,13 +204,17 @@ def unpack_prior(name, prior_tuple):
 	func_dict = {'normal': pm.Normal,
 		'uniform': pm.Uniform}
 	func, a, b = prior_tuple
-	return func_dict[func](name, a, b)
+	if func == 'uniform':
+		testval = (a + b)/2
+	else:
+		testval = a
+	return func_dict[func](name, a, b, testval = testval)
 
 def make_model(x, ys, yerrs, compars, weight_guess, texp, r_star_prior,
 	t0_prior, period_prior, a_rs_prior, b_prior,
 	jitter_prior, phase = 'primary', ror_prior = None, fpfs_prior = None,
 	ldc_val = None, gp = False,
-	sigma_prior = None, rho_prior = None):
+	sigma_prior = None, rho_prior = None, baseline_off = False):
 	##currently doing circular orbits ONLY
 
 	with pm.Model() as model:
@@ -243,19 +254,8 @@ def make_model(x, ys, yerrs, compars, weight_guess, texp, r_star_prior,
 
 		jitter = unpack_prior('jitter', jitter_prior)
 		full_variance = yerrs[0]**2 + jitter**2
-		
-		if not gp:
-			#baseline
-			vec = x - np.median(x)
-			base = pm.Uniform(f"baseline", -10, 10., shape = 2,
-				testval = [0., 0.])
-			baseline = base[0]*vec + base[1]
-
-			full_model = baseline + systematics*lightcurve
-			pm.Normal(f"obs", mu=full_model,
-				sd=np.sqrt(full_variance), observed=ys[0])
-
-		else:
+	
+		if gp:
 			y_gp = ys[0] - systematics*lightcurve
 			sigma = unpack_prior('sigma', sigma_prior)
 			rho = unpack_prior('rho', rho_prior)
@@ -264,6 +264,22 @@ def make_model(x, ys, yerrs, compars, weight_guess, texp, r_star_prior,
 				diag = full_variance, quiet = True)
 			gp.marginal(f"obs", observed = y_gp)
 			pm.Deterministic(f"gp_pred", gp.predict(y_gp))
+
+		elif baseline_off:
+			full_model = systematics*lightcurve
+			pm.Normal("obs", mu = full_model, 
+				sd = np.sqrt(full_variance), observed = ys[0])
+
+		else:
+			#baseline
+			vec = x - np.median(x)
+			base = pm.Uniform(f"baseline", -10, 10., shape = 2,
+				testval = [0.,0.])
+			baseline = base[0]*vec + base[1]
+
+			full_model = baseline + systematics*lightcurve
+			pm.Normal(f"obs", mu=full_model,
+				sd=np.sqrt(full_variance), observed=ys[0])
 
 		map_soln = model.test_point
 		map_soln = pmx.optimize(map_soln)
