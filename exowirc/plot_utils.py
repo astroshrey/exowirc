@@ -38,8 +38,16 @@ def plot_initial_map(plot_dir, x, ys, yerrs, compars, map_soln, gp = False,
 	detrended_data = (ys[0] - baseline)/systematics
 	true_err= np.sqrt(yerrs[0]**2 + map_soln["jitter"]**2)
 
+
 	scatter = detrended_data - lc
 	print('RMS scatter in MAP: ', np.std(scatter)*1e6, 'ppm')
+
+	scatter = ys[0] - map_soln['full_model'] 
+	print('RMS scatter in MAP: ', np.std(scatter)*1e6, 'ppm')
+
+	plt.plot(x, map_soln['full_model'] - ys[0], 'r-')
+	plt.show()	
+
 
 	plt.errorbar(x, detrended_data, yerr = true_err,
 		color = 'k', marker = '.', linestyle = 'None')

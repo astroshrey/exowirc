@@ -267,6 +267,7 @@ def make_model(x, ys, yerrs, compars, weight_guess, texp, r_star_prior,
 
 		elif baseline_off:
 			full_model = systematics*lightcurve
+			pm.Deterministic("full_model", full_model)
 			pm.Normal("obs", mu = full_model, 
 				sd = np.sqrt(full_variance), observed = ys[0])
 
@@ -278,6 +279,7 @@ def make_model(x, ys, yerrs, compars, weight_guess, texp, r_star_prior,
 			baseline = base[0]*vec + base[1]
 
 			full_model = baseline + systematics*lightcurve
+			pm.Deterministic("full_model", full_model)
 			pm.Normal(f"obs", mu=full_model,
 				sd=np.sqrt(full_variance), observed=ys[0])
 
