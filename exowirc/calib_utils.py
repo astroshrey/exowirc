@@ -179,7 +179,7 @@ def check_saved(dirname, dark_seqs, flat_seq, style):
 		darkname = f'{dirname}{style}{zeros}{num}' + \
 			'_combined_dark.fits'
 		hpname = f'{dirname}{style}{zeros}{num}' + \
-			'_combined_hp_map_test.fits'
+			'_combined_hp_map.fits'
 		darks.append(darkname)
 		hps.append(hpname)
 		hdul = fits.open(darkname)
@@ -192,7 +192,7 @@ def check_saved(dirname, dark_seqs, flat_seq, style):
 	flatname = f'{dirname}{style}{zeros}{num}' + \
 		'_combined_flat.fits'
 	bpname = f'{dirname}{style}{zeros}{num}' + \
-		'_combined_bp_map_test.fits'
+		'_combined_bp_map.fits'
 	hdul = fits.open(flatname)
 	hdul.close()
 	hdul = fits.open(bpname)
@@ -318,13 +318,13 @@ def make_combined_image(dirname, seq_start, seq_end, calibration = 'dark',
 		print("Generating hot pixel map...")
 		hp = get_hot_px(stack) 
 		bpname = f'{dirname}{style}{zeros}{seq_end}'
-		bpname += f'_combined_hp_map_test.fits'
+		bpname += f'_combined_hp_map.fits'
 		save_image(hp, bpname)
 	else:
 		print("Generating bad pixel map...")
 		bp = get_bad_px(combined)
 		bpname = f'{dirname}{style}{zeros}{seq_end}'
-		bpname += f'_combined_bp_map_test.fits'
+		bpname += f'_combined_bp_map.fits'
 		save_image(bp, bpname)
 		bp = np.array(bp, dtype = 'bool')
 		med = np.nanmedian(combined[~bp])
@@ -382,7 +382,7 @@ def make_calibrated_bkg_image(data_dir, calib_dir, bkg_seq, dark_ranges,
 		style = naming_style) for \
 		i in range(bkg_seq[0], bkg_seq[1] + 1)]
 	imname = get_img_name(calib_dir, bkg_seq[-1],
-		style = naming_style, img_type = 'calibrated_background_test')
+		style = naming_style, img_type = 'calibrated_background')
 	if not remake_bkg:
 		try:
 			return check_saved_background(imname)
@@ -410,6 +410,10 @@ def make_calibrated_bkg_image(data_dir, calib_dir, bkg_seq, dark_ranges,
 		clipped = sigma_clip(calib,
 			sigma_lower = sigma_lower,
 			sigma_upper = sigma_upper)
+		if plot:
+			plt.figure(figsize = (8,8))
+			plt.imshow(clipped, origin = 'lower', vmin = 0, vmax = 70e3, cmap = 'Blues')
+			plt.show()
 		if i == 0:
 			med_val = np.nanmedian(clipped.flatten())
 		scale_factor = med_val / np.nanmedian(clipped.flatten())
