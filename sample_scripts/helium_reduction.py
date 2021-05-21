@@ -6,41 +6,41 @@ import numpy as np
 import warnings
 
 ######## pipeline steps #################################
-remake_darks_and_flats = False
-remake_bkg = False
-calibrate_data = False
-photometric_extraction = False
+remake_darks_and_flats = True 
+remake_bkg = True
+calibrate_data = True
+photometric_extraction = True
 fit_for_eclipse = True
 ######## calibration params ###############
-data_dir = '../../data/20210501/'
+data_dir = '../../data/20190816/'
 output_dir = '../../data_products/'
-test_name = 'HATP26_test_3'
+test_name = 'WASP69_new_test'
 nonlinearity_fname = None
 naming_style = 'image'
-science_seqs = [(91, 350)] 
-dark_seqs = [(44, 54)]
-flat_seq = (22, 42)
-dark_for_flat_seq = (1, 21)
-bkg_seq = (85, 89)
+science_seqs = [(73, 417)] 
+dark_seqs = [(438, 457)]
+flat_seq = (6, 25)
+dark_for_flat_seq = (438, 457)
+bkg_seq = (68, 71)
 bkg_sigma_lower = 5
 bkg_sigma_upper = 1000
 background_mode = 'helium'
 covariate_names = ['d_from_med', 'water_proxy', 'airmass']
 ####### extraction params ###############
-source_coords = [248, 1866]
-finding_fwhm = 20.
-extraction_rads = range(5, 25)
+source_coords = [265, 1836]
+finding_fwhm = 10.
+extraction_rads = range(7, 15)
 ann_rads = (25, 50)
-source_detection_sigma = 100.
+source_detection_sigma = 50.
 max_num_compars = 10
 ######## planet params ################
 phase = 'primary'
-texp = 1.5/1440.
-r_star_prior = ('normal', 0.788, 0.098) #Hartman+10
-period_prior = ('normal', 4.2345023, 0.0000007) #Stevenson+16
-t0_prior = ('normal', 2455304.65218, 0.00025) #Stevenson+16
-a_rs_prior = ('normal', 13.06, 0.83) #Hartman+10
-b_prior = ('normal', 0.303, 0.122) #Hartman+10
+texp = 1./1440.
+r_star_prior = ('normal', 0.813, 0.028) #Anderson+14
+period_prior = ('normal', 3.8681382, 0.0000017) #Anderson+14
+t0_prior = ('normal', 2455748.83344, 0.00018) #Anderson+14
+a_rs_prior = ('normal', 12.00, 0.46) #Anderson+14
+b_prior = ('normal', 0.686, 0.023) #Anderson+14
 ror_prior = ('uniform', 0., 0.25)
 jitter_prior = ('uniform', 1e-6, 1e-2)
 ######## fitting params ###############

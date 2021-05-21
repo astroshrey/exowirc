@@ -12,36 +12,37 @@ calibrate_data = True
 photometric_extraction = True
 fit_for_eclipse = True
 ######## calibration params ###############
-data_dir = '/Volumes/brassnose/20210430/'
+data_dir = '/Volumes/brassnose/20190824/'
 output_dir = '../../data_products/'
-test_name = 'NGTS5'
+test_name = 'Kepler289'
 nonlinearity_fname = None
 naming_style = 'image'
-science_seqs = [(144, 347)] 
-dark_seqs = [(358, 368)]
-flat_seq = (27, 47)
-dark_for_flat_seq = (1, 21)
-bkg_seq = (350, 356)
+science_seqs = [(65, 456)] 
+dark_seqs = [(458, 477)]
+flat_seq = (22, 41)
+dark_for_flat_seq = (2, 21)
+bkg_seq = (60, 63)
 bkg_sigma_lower = 5
 bkg_sigma_upper = 1000
-background_mode = 'helium'
-covariate_names = ['d_from_med', 'water_proxy', 'airmass']
+background_mode = 'median'
+covariate_names = ['d_from_med', 'background', 'airmass']
 ####### extraction params ###############
-source_coords = [428, 1524]
-target_and_compars = [source_coords, [852, 225]]
+source_coords = [1210, 671]
+finding_fwhm = 15.
 extraction_rads = range(5, 25)
 ann_rads = (25, 50)
+source_detection_sigma = 100.
 max_num_compars = 10
 ######## planet params ################
 phase = 'primary'
-texp = 1.5/1440.
-r_star_prior = ('normal', 0.739, 0.014) #Eigmuller+19
-period_prior = ('normal', 3.3569866, 0.0000026) 
-t0_prior = ('normal', 2457740.35262, 0.00026) 
-a_rs_prior = ('normal', 11.111, 0.32) 
-b_prior = ('normal', 0.653, 0.048)
-ror_prior = ('uniform', 0., 0.2)
-jitter_prior = ('uniform', 1e-6, 5e-2)
+texp = (50./60.)/1440. #days
+r_star_prior = ('normal', 1.01, 0.045) #Berger+18
+period_prior = ('normal', 125.8518, 0.0076) #Schmitt+14
+t0_prior = ('normal', 2455069.8518, 0.0077) #Schmitt+14
+a_rs_prior = ('normal', 108.6, 1.1) #Schmitt+14
+b_prior = ('normal', 0.394, 0.029) #Schmitt+14
+ror_prior = ('uniform', 0., 0.25)
+jitter_prior = ('uniform', 1e-6, 1e-2)
 ######## fitting params ###############
 tune = 1000            #number of burn-in steps per chain
 draws = 1500           #number of steps per chain
@@ -78,12 +79,13 @@ if __name__ == '__main__':
 			pu.perform_photometry(calib_dir, dump_dir, img_dir,
 				science_seqs, source_coords,
 				style = naming_style,
+				finding_fwhm = finding_fwhm, 
 				extraction_rads = extraction_rads,
 				background_mode = background_mode,
 				ann_rads = ann_rads,
+				source_detection_sigma = source_detection_sigma,
 				max_num_compars = max_num_compars,
-				bkg_fname = bkg,
-				target_and_compars = target_and_compars)
+				bkg_fname = bkg)
 
 	if fit_for_eclipse:
 		with warnings.catch_warnings():
