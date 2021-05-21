@@ -6,7 +6,7 @@ import numpy as np
 import warnings
 
 ######## pipeline steps #################################
-remake_darks_and_flats = False
+remake_darks_and_flats = False 
 remake_bkg = False
 calibrate_data = False
 photometric_extraction = False
@@ -14,13 +14,13 @@ fit_for_eclipse = True
 ######## calibration params ###############
 data_dir = '../../data/20210306/'
 output_dir = '../../data_products/'
-test_name = 'TOI2106'
+test_name = 'toi2109_final'
 nonlinearity_fname = None
 naming_style = 'image'
 science_seqs = [(291, 529)] 
 dark_seqs = [(530, 540)]
 flat_seq = (66, 86)
-dark_for_flat_seq = (45, 65)
+dark_for_flat_seq = (1, 21)
 bkg_seq = (285, 289)
 bkg_sigma_lower = 5
 bkg_sigma_upper = 1000
@@ -43,7 +43,7 @@ t0_prior = ('normal', 2458997.16653, 0.00016)
 a_rs_prior = ('normal', 3.148, 0.034)
 b_prior = ('normal', 0.137, 0.029)
 ldc_val = [0., 0.]
-fpfs_prior = ('uniform', 0., 0.25)
+fpfs_prior = ('uniform', 0., 0.05)
 jitter_prior = ('uniform', 1e-6, 1e-2)
 ######## fitting params ###############
 tune = 1000            #number of burn-in steps per chain
@@ -102,5 +102,6 @@ if __name__ == '__main__':
 				phase = phase, ldc_val = ldc_val,
 				fpfs_prior = fpfs_prior,
 				tune = tune, draws = draws, 
-				target_accept = target_accept)
+				target_accept = target_accept,
+				flux_cutoff = 0.9)
 
