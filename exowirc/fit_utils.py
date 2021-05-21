@@ -3,6 +3,7 @@ import exoplanet as xo
 import pymc3 as pm
 import pymc3_ext as pmx
 import arviz as az
+import decimal
 
 from scipy.signal import medfilt
 from astropy.stats import sigma_clip
@@ -11,9 +12,6 @@ from celerite2.theano import terms, GaussianProcess
 from .io_utils import load_phot_data
 from .plot_utils import trace_plot, corner_plot, plot_aperture_opt, \
 	plot_quickfit, plot_covariates, plot_initial_map, tripleplot
-
-#TODO: a to_latex function that takes the arviz summary output and generates
-#table-ready latex strings
 
 def clean_up(x, ys, yerrs, compars, weight_guess, cutoff_frac = 0.,
 	end_num = 0, medfilt_kernel = 11, sigma_cut = 5):
@@ -141,8 +139,10 @@ def fit_lightcurve(dump_dir, plot_dir, best_ap, background_mode,
 	trace.posterior.to_netcdf(f'{dump_dir}posterior.nc', engine='scipy')
 	print("Sampling complete!")
 	new_map = get_new_map(trace)
-	summary, varnames = gen_summary(plot_dir, trace, phase, ldc_val, gp,
+	summary, varnames = gen_summary(dump_dir, trace, phase, ldc_val, gp,
 		baseline_off)
+	gen_latex_table(dump_dir, summary)
+
 	print("Making corner and trace plots...")
 	trace_plot(plot_dir, trace, varnames)
 	corner_plot(plot_dir, trace, varnames)
@@ -153,7 +153,7 @@ def fit_lightcurve(dump_dir, plot_dir, best_ap, background_mode,
 	print("Fitting complete!")
 	return None	
 
-def gen_summary(plot_dir, trace, phase, ldc_val, gp = False,
+def gen_summary(dump_dir, trace, phase, ldc_val, gp = False,
 	baseline_off = False):
 	if phase == 'primary':
 		varnames = ['t0', 'period', 'a_rs', 'b', 'ror',
@@ -178,9 +178,28 @@ def gen_summary(plot_dir, trace, phase, ldc_val, gp = False,
 	summary = az.summary(trace, var_names = varnames,
 		stat_funcs = func_dict, round_to = 16,
 		kind = 'all')
-	summary.to_csv(f'{plot_dir}fit_summary.csv')
+	summary.to_csv(f'{dump_dir}fit_summary.csv')
 
 	return summary, varnames
+
+def gen_latex_table(dump_dir, summary):
+	f = open(f'{dump_dir}latex_format_table.txt', 'w')
+	for index, row in summary.iterrows():
+		med = row['50%']
+		lo = row['50%'] - row['16%']
+		hi = row['84%'] - row['50%']
+		decs = ["{:0.2g}".format(x) for x in [med, lo, hi]]
+		places = [-decimal.Decimal(x).as_tuple().exponent for x in decs]
+		dec = max(places)
+
+		fmtstr = "{:0."+str(dec)+"f}"
+		medstr = fmtstr.format(med)
+		lostr = fmtstr.format(lo) 
+		histr = fmtstr.format(hi)
+		printstr = f'${medstr}_{{-{lostr}}}^{{+{histr}}}$'
+
+		print(index, '&', printstr, file = f)
+	f.close()	
 
 def get_new_map(trace):
 	dat = np.array(trace.sample_stats.lp)
@@ -304,4 +323,6 @@ def gen_d_from_med(centroid_x_init, centroid_y_init):
 	d_from_med_init = np.sqrt((centroid_x_init[0] - med_x)**2 \
 		+ (centroid_y_init[0] - med_y)**2)
 	return d_from_med_init
+
+
 
