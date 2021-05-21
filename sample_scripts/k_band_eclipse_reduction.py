@@ -24,7 +24,6 @@ dark_for_flat_seq = (1, 21)
 bkg_seq = (285, 289)
 bkg_sigma_lower = 5
 bkg_sigma_upper = 1000
-destripe = True
 background_mode = 'global'
 covariate_names = ['d_from_med', 'airmass', 'background']
 ####### extraction params ###############
@@ -71,8 +70,7 @@ if __name__ == '__main__':
 			warnings.simplefilter("ignore")
 			cu.calibrate_all(data_dir, calib_dir, dump_dir,
 				science_seqs, dark_seqs, dark_for_flat_seq,
-				flat_seq, destripe = destripe,
-				style = naming_style, 
+				flat_seq, style = naming_style, 
 				background_mode = background_mode, 
 				bkg_filename = bkg)
 

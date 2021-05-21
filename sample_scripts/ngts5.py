@@ -6,13 +6,13 @@ import numpy as np
 import warnings
 
 ######## pipeline steps #################################
-remake_darks_and_flats = False 
-remake_bkg = False
-calibrate_data = False
-photometric_extraction = False 
+remake_darks_and_flats = True 
+remake_bkg = True
+calibrate_data = True
+photometric_extraction = True
 fit_for_eclipse = True
 ######## calibration params ###############
-data_dir = '../../data/20210430/'
+data_dir = '/Volumes/brassnose/20210430/'
 output_dir = '../../data_products/'
 test_name = 'NGTS5'
 nonlinearity_fname = None
@@ -24,7 +24,6 @@ dark_for_flat_seq = (1, 21)
 bkg_seq = (350, 356)
 bkg_sigma_lower = 5
 bkg_sigma_upper = 1000
-destripe = True
 background_mode = 'helium'
 covariate_names = ['d_from_med', 'water_proxy', 'airmass']
 ####### extraction params ###############
@@ -41,7 +40,7 @@ period_prior = ('normal', 3.3569866, 0.0000026)
 t0_prior = ('normal', 2457740.35262, 0.00026) 
 a_rs_prior = ('normal', 11.111, 0.32) 
 b_prior = ('normal', 0.653, 0.048)
-ror_prior = ('uniform', 0., 0.5)
+ror_prior = ('uniform', 0., 0.2)
 jitter_prior = ('uniform', 1e-6, 5e-2)
 ######## fitting params ###############
 tune = 1000            #number of burn-in steps per chain
@@ -69,8 +68,7 @@ if __name__ == '__main__':
 			warnings.simplefilter("ignore")
 			cu.calibrate_all(data_dir, calib_dir, dump_dir,
 				science_seqs, dark_seqs, dark_for_flat_seq,
-				flat_seq, destripe = destripe,
-				style = naming_style, 
+				flat_seq, style = naming_style, 
 				background_mode = background_mode, 
 				bkg_filename = bkg)
 
@@ -99,5 +97,4 @@ if __name__ == '__main__':
 				a_rs_prior, b_prior, jitter_prior,
 				phase = phase, ror_prior = ror_prior,
 				tune = tune, draws = draws, 
-				target_accept = target_accept,
-				baseline_off = True)
+				target_accept = target_accept)
