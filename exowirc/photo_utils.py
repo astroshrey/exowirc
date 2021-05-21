@@ -426,8 +426,8 @@ def find_my_source(sources, target_coords, tolerance = 20):
 def perform_photometry(calib_dir, dump_dir, img_dir, science_ranges,
 	target_coords, finding_fwhm = 15., extraction_rads = [20.],
 	style = 'wirc', source_detection_sigma = 50, max_num_compars = 10,
-	gain = 1.2, bkg_fname = None, background_mode = None, ann_rads = (20, 50), 
-	target_and_compars = None, bad_channel = False):
+	gain = 1.2, bkg_fname = None, background_mode = None,
+	ann_rads = (20, 50), target_and_compars = None, bad_channel = False):
 	"""Given a list of science images, performs aperture photometry. First,
 	sources are automatically detected and cleaned. Then we run aperture
 	photometry with local background subtraction using a sigma-clipped
@@ -532,6 +532,7 @@ def perform_photometry(calib_dir, dump_dir, img_dir, science_ranges,
 			with fits.open(bkg_fname) as hdul:
 				bkg_frame = hdul[0].data
 
+	if background_mode is not None:
 		bkgs = np.array(load_bkgs(dump_dir))
 
 	#performing the extraction	
@@ -547,9 +548,12 @@ def perform_photometry(calib_dir, dump_dir, img_dir, science_ranges,
 			bkg_error_array = np.sqrt(bkg_error_array/gain)
 			error = calc_total_error(image,
 				bkg_error_array, gain)
-		elif background_mode == 'global':
+		elif background_mode == 'global' or background_mode == 'median':
 			#error is sqrt(N)
-			bkg_arr = np.sqrt(bkg_arr)
+			if background_mode == 'global':
+				bkg_arr = np.sqrt(bkg_arr)
+			else:
+				bkg_arr = np.ones((2048, 2048))
 			bkg_errors = np.sqrt(bkgs/gain)
 			bkg_error_array = bkg_arr*bkg_errors[i]
 			error = calc_total_error(image,
@@ -579,6 +583,9 @@ def perform_photometry(calib_dir, dump_dir, img_dir, science_ranges,
 			get_source_first(source_ind, xpos, ypos, psf_widths,
 			raw_phot, errs)
 		dump_dir_temp = dump_dir_phot + str(rad) + '/'
+		xpos_temp, ypos_temp, psf_widths_temp, raw_phot, errs = \
+			reject_bad_trends(xpos_temp, ypos_temp,
+			psf_widths_temp, raw_phot, errs, max_num_compars)
 
 		fnames = save_phot_data(dump_dir_temp,
 			xpos_temp, ypos_temp, psf_widths_temp,
