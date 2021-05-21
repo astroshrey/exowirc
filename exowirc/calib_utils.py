@@ -246,7 +246,7 @@ def make_darks_and_flats(dirname, calib_dir, dark_seqs, dark_for_flat_seq,
 	#check if saved versions exist
 	if not remake_darks_and_flats:
 		try:
-			return check_saved(dirname, dark_seqs,
+			return check_saved(calib_dir, dark_seqs,
 				flat_seq, style)
 		except FileNotFoundError as e:
 			print("Can't find saved darks/flats -- remaking...")
