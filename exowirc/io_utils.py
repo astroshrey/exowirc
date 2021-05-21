@@ -61,15 +61,11 @@ def load_bkgs(dump_dir):
 ##directories
 def init_phot_dirs(dump_dir, img_dir, rads):
 	dump_dir_phot = dump_dir + 'phot/'
-	img_dir_phot = img_dir + 'phot/'
 	Path(dump_dir_phot).mkdir(exist_ok = True)
-	Path(img_dir_phot).mkdir(exist_ok = True)
 	for rad in rads:
 		dump_dir_temp = dump_dir + 'phot/' + str(rad) + '/'
-		img_dir_temp = img_dir + 'phot/' + str(rad) + '/'
 		Path(dump_dir_temp).mkdir(exist_ok = True)
-		Path(img_dir_temp).mkdir(exist_ok = True)
-	return dump_dir_phot, img_dir_phot
+	return dump_dir_phot
 
 def init_output_direcs(path, test_name):
 	"""Initializes all output directories"""

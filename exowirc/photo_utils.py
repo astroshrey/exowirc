@@ -496,7 +496,7 @@ def perform_photometry(calib_dir, dump_dir, img_dir, science_ranges,
 	#initializing dirs and finding frame 
 	to_extract = get_science_img_list(science_ranges)
 	n_images = len(to_extract)
-	dump_dir_phot, img_dir_phot = init_phot_dirs(dump_dir, img_dir,
+	dump_dir_phot = init_phot_dirs(dump_dir, img_dir,
 		extraction_rads)
 
 	finding_frame = load_calib_img(calib_dir,
@@ -578,7 +578,6 @@ def perform_photometry(calib_dir, dump_dir, img_dir, science_ranges,
 		xpos_temp, ypos_temp, psf_widths_temp, raw_phot, errs = \
 			get_source_first(source_ind, xpos, ypos, psf_widths,
 			raw_phot, errs)
-		img_dir_temp = img_dir_phot + str(rad) + '/'
 		dump_dir_temp = dump_dir_phot + str(rad) + '/'
 
 		fnames = save_phot_data(dump_dir_temp,
