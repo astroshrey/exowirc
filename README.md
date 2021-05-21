@@ -1,8 +1,12 @@
 # exowirc
-data reduction for exoplanet observations on Palomar/WIRC
 
-Included also are some example scripts for how data reduction could be carried out.
+Here, you'll find all things for exoplanet observations on Palomar/WIRC, including data reduction software, oberving procedures, and the current data inventory.
 
-Here's a useful command for installation from the static .cfg file:
-``python3 -c "import configparser; c = configparser.ConfigParser(); c.read('setup.cfg'); print(c['options']['install_requires'])" | xargs pip install``
+To install the data reduction package, first download/clone the repo with:
+``git clone https://github.com/astroshrey/exowirc.git''
+
+And then run:
+``python3 setup.py install''
+
+This should take care of all package dependencies.
 
