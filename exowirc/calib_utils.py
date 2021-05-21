@@ -69,8 +69,9 @@ def calibrate_all(raw_dir, calib_dir, dump_dir, science_ranges, dark_ranges,
 		(len(dark_ranges) == 1)
 
 	#making/loading darks and flats
-	flat, darks, bp, hps = make_darks_and_flats(raw_dir, dark_ranges,
-		dark_for_flat_range, flat_range, style, remake_darks_and_flats)
+	flat, darks, bp, hps = make_darks_and_flats(raw_dir, calib_dir, 
+		dark_ranges, dark_for_flat_range, flat_range, style,
+		remake_darks_and_flats)
 
 	#making mcf
 	mcf = None
@@ -209,7 +210,7 @@ def check_saved_background(imname):
 
 ###Flats and Darks###
 
-def make_darks_and_flats(dirname, dark_seqs, dark_for_flat_seq,
+def make_darks_and_flats(dirname, calib_dir, dark_seqs, dark_for_flat_seq,
 	flat_seq, style, remake_darks_and_flats = True):
 	"""Creates combined dark, dark for flat, and combined flat.
 	
@@ -250,32 +251,34 @@ def make_darks_and_flats(dirname, dark_seqs, dark_for_flat_seq,
 		except FileNotFoundError as e:
 			print("Can't find saved darks/flats -- remaking...")
 
-	temp,_ = make_combined_image(dirname, *dark_for_flat_seq,
+	temp,_ = make_combined_image(dirname, calib_dir, *dark_for_flat_seq,
 		style = style, calibration = 'dark')
 	print('DARK FOR FLAT CREATED')
-	flat,bp = make_combined_image(dirname, *flat_seq,
+	flat,bp = make_combined_image(dirname, calib_dir, *flat_seq,
 		style = style, calibration = 'flat', dark_for_flat_name = temp)
 	print('COMBINED FLAT CREATED')
 	
 	darks = []
 	hps = []
 	for seq in dark_seqs:
-		dark, hp = make_combined_image(dirname, *seq, style = style,
-			calibration = 'dark')
+		dark, hp = make_combined_image(dirname, calib_dir, *seq,
+			style = style, calibration = 'dark')
 		darks.append(dark)
 		hps.append(hp)
 		print('COMBINED DARK CREATED')
 			
 	return flat, darks, bp, hps
 
-def make_combined_image(dirname, seq_start, seq_end, calibration = 'dark',
-	dark_for_flat_name = None, style = 'wirc'):
+def make_combined_image(dirname, calib_dir, seq_start, seq_end,
+	calibration = 'dark', dark_for_flat_name = None, style = 'wirc'):
 	"""Given a dark or flat sequence, constructs a combined frame.
 
 	Parameters
 	------
 	dirname : string
-		path to the directory in which darks are stored
+		path to the directory in which raw frames are stored
+	dirname : string
+		path to the directory you want calibrated frames saved
 	seq_start : int
 		starting image number for the sequence
 	seq_end : int
@@ -317,19 +320,19 @@ def make_combined_image(dirname, seq_start, seq_end, calibration = 'dark',
 	if calibration == 'dark':
 		print("Generating hot pixel map...")
 		hp = get_hot_px(stack) 
-		bpname = f'{dirname}{style}{zeros}{seq_end}'
+		bpname = f'{calib_dir}{style}{zeros}{seq_end}'
 		bpname += f'_combined_hp_map.fits'
 		save_image(hp, bpname)
 	else:
 		print("Generating bad pixel map...")
 		bp = get_bad_px(combined)
-		bpname = f'{dirname}{style}{zeros}{seq_end}'
+		bpname = f'{calib_dir}{style}{zeros}{seq_end}'
 		bpname += f'_combined_bp_map.fits'
 		save_image(bp, bpname)
 		bp = np.array(bp, dtype = 'bool')
 		med = np.nanmedian(combined[~bp])
 		combined = combined/med
-	savename = f'{dirname}{style}{zeros}{seq_end}'
+	savename = f'{calib_dir}{style}{zeros}{seq_end}'
 	savename += f'_combined_{calibration}.fits'
 	save_image(combined, savename)
 	return savename, bpname
@@ -391,8 +394,8 @@ def make_calibrated_bkg_image(data_dir, calib_dir, bkg_seq, dark_ranges,
 
 	print("Creating background frame...")
 	#create/load up flats and darks
-	flat, darks, bp, hps = make_darks_and_flats(data_dir, dark_ranges,
-		dark_for_flat_range, flat_range, naming_style,
+	flat, darks, bp, hps = make_darks_and_flats(data_dir, calib_dir,
+		dark_ranges, dark_for_flat_range, flat_range, naming_style,
 		remake_darks_and_flats)
 	dark = darks[0]
 	hp = hps[0]
