@@ -200,6 +200,22 @@ def gen_latex_table(dump_dir, summary):
 
 		print(index, '&', printstr, file = f)
 	f.close()	
+	return None
+
+def gen_lightcurve_table(dump_dir, x, detrended, true_errs):
+	fname = f'{dump_dir}detrended_light_curve.csv'
+	f = open(fname, 'w')
+	print('BJD,detrended_flux,err', file = f)
+	for xi, yi, yerri in zip(x, detrended, true_errs):
+		dec = "{:0.2g}".format(yerri)
+		places = -decimal.Decimal(dec).as_tuple().exponent
+		fmtstr = "{:0."+str(places)+"f}"
+		xistr = fmtstr.format(xi)
+		yistr = fmtstr.format(yi)
+		yerristr = fmtstr.format(yerri)
+		print(f'{xi},{yi},{yerri}', file = f)
+	f.close()
+	return None
 
 def get_new_map(trace):
 	dat = np.array(trace.sample_stats.lp)
@@ -267,7 +283,7 @@ def make_model(x, ys, yerrs, compars, weight_guess, texp, r_star_prior,
 			t = x, texp = texp), axis = -1) + 1.)
 
 		#systematics
-		comp_weights = pm.Uniform("weights", -10., 10.,
+		comp_weights = pm.Uniform("weights", -2., 2.,
 			testval = weight_guess, shape = len(weight_guess))
 		systematics = pm.math.dot(comp_weights, compars)
 
@@ -293,7 +309,7 @@ def make_model(x, ys, yerrs, compars, weight_guess, texp, r_star_prior,
 		else:
 			#baseline
 			vec = x - np.median(x)
-			base = pm.Uniform(f"baseline", -10, 10., shape = 2,
+			base = pm.Uniform(f"baseline", -2, 2., shape = 2,
 				testval = [0.,0.])
 			baseline = base[0]*vec + base[1]
 
