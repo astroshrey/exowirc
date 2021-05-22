@@ -120,11 +120,12 @@ def crossmatch_covariates(covariates, covariate_dict):
 	return [covariate_dict[cov] for cov in covariates]
 
 def fit_lightcurve(dump_dir, plot_dir, best_ap, background_mode,
-	covariate_names,  texp, r_star_prior, t0_prior, period_prior,
+	covariate_names, texp, r_star_prior, t0_prior, period_prior,
 	a_rs_prior, b_prior, jitter_prior, ror_prior = None,
 	fpfs_prior = None, tune = 1000, 
 	draws = 1500, target_accept = 0.99, phase = 'primary',
-	ldc_val = None, flux_cutoff = 0., end_num = 0, filter_width = 31,
+	ldc_val = None, bin_time = 5., 
+	flux_cutoff = 0., end_num = 0, filter_width = 31,
 	sigma_cut = 5, gp = False, sigma_prior = None, rho_prior = None,
 	baseline_off = False):
 	
@@ -189,7 +190,8 @@ def fit_lightcurve(dump_dir, plot_dir, best_ap, background_mode,
 	corner_plot(plot_dir, trace, varnames)
 	print("Visualizing fit...")
 	tripleplot(plot_dir, dump_dir, x, ys, yerrs, compars,
-		new_map, trace, phase = phase, gp = gp, 
+		new_map, trace, texp, bin_time = bin_time,
+		phase = phase, gp = gp, 
 		baseline_off = baseline_off)
 	print("Fitting complete!")
 	return None	

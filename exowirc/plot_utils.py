@@ -92,27 +92,27 @@ def plot_aperture_opt(plot_dir, apertures, rmses):
 	return None
 
 def gen_rms(lc, binsize):
-	binned = lc.bin(binsize = binsize)
-	return(np.std(binned.flux))
+	binned = lc.bin(time_bin_size = binsize)
+	return(np.nanstd(binned.flux))
 
-def gen_photon_noise(lc, photon_noise, binsize):
-	binned = lc.bin(binsize = binsize)
+def gen_photon_noise(lc, photon_noise, binsize, texp):
+	binned = lc.bin(time_bin_size = binsize)
 	length_arr = len(binned.time)
 	length_factor = np.sqrt(length_arr/(length_arr - 1))
-	white_noise = photon_noise / np.sqrt(binsize) * length_factor
+	white_noise = photon_noise/np.sqrt(binsize/texp)*length_factor
 	return white_noise
 
 def gen_photon_noise_errors(lc, photon_noise, binsize):
-	binned = lc.bin(binsize = binsize)
+	binned = lc.bin(time_bin_size = binsize)
 	length_arr = len(binned.time)
-	rms = np.std(binned.flux)
+	rms = np.nanstd(binned.flux)
 	return rms/np.sqrt(2*length_arr)
 
 def represent_noise_stats(dump_dir, new_map, resid, yerrs):
 	filename = open(f'{dump_dir}noise_stats.txt', 'w')
 	shot_noise = yerrs[0]
 	sigma_extra = float(new_map['jitter'])
-	rms = np.std(resid)
+	rms = np.nanstd(resid)
 	npts = len(resid)
 
 	print("Mean shot noise (data + bkg): ", np.mean(shot_noise)*1e6, "ppm",
@@ -136,8 +136,9 @@ def trace_plot(plot_dir, data, varnames):
 	return None
 
 def tripleplot(plot_dir, dump_dir, x, ys, yerrs, compars, new_map, 
-	trace, phase = 'primary', binsize = 5, gp = False,
+	trace, texp, phase = 'primary', bin_time = 5, gp = False,
 	baseline_off = False):
+	#bin_time in mins
 
 	matplotlib.rcParams['mathtext.fontset'] = 'cm'
 	matplotlib.rcParams['font.family'] = 'STIXGeneral'
@@ -171,10 +172,10 @@ def tripleplot(plot_dir, dump_dir, x, ys, yerrs, compars, new_map,
 	#setting the light curves for plotting and residuals
 	plot_lc = lk.LightCurve(time = x_fold, flux = detrended_data,
 		flux_err = true_err)
-	bin_lc = plot_lc.bin(binsize = binsize)
+	bin_lc = plot_lc.bin(time_bin_size = bin_time / 1440.)
 	plot_resid = lk.LightCurve(time = x_fold, flux = detrended_data - lc,
 		flux_err = true_err)
-	bin_resid = plot_resid.bin(binsize = binsize)
+	bin_resid = plot_resid.bin(time_bin_size = bin_time / 1440.)
 	represent_noise_stats(dump_dir, new_map, plot_resid.flux, yerrs)
 
 	#plotting light curve and residuals, unbinned and binned
@@ -191,7 +192,7 @@ def tripleplot(plot_dir, dump_dir, x, ys, yerrs, compars, new_map,
 		linestyle = 'None', ms = 5)
 
 	#MAP wirc light curve
-	ax[0].plot(x_fold, lc, f'r-', zorder = 10, lw = 3)
+	ax[0].plot(x_fold, lc, f'r-', zorder = 10, lw = 2)
 	#68 percentile on the confidence interval
 	stacked = trace.posterior.stack(draws=("chain", "draw"))
 	lcsamps = stacked.light_curve.values
@@ -201,24 +202,25 @@ def tripleplot(plot_dir, dump_dir, x, ys, yerrs, compars, new_map,
 		alpha = 0.3, facecolor = f'r', lw = 1)
 
 	#rms vs binsize
-	binsizes = np.arange(1, 30)
+	binsizes = np.arange(1, 30) * texp
 	rmses = [gen_rms(plot_resid, bs) for bs in binsizes]
 	photon_noise = np.median(yerrs[0])
 	photon_noises = [gen_photon_noise(
-		plot_resid, photon_noise, bs) for bs in binsizes]
+		plot_resid, photon_noise, bs, texp) for bs in binsizes]
 	photon_noise_errors = [gen_photon_noise_errors(
 		plot_resid, photon_noise, bs) for bs in binsizes]
-	ax[2].errorbar(binsizes, rmses, yerr = photon_noise_errors,
+
+	ax[2].errorbar(binsizes*1440., rmses, yerr = photon_noise_errors,
 		color = 'k')
-	ax[2].plot(binsizes, photon_noises, 'r-')
-	ax[2].plot(binsizes,
+	ax[2].plot(binsizes*1440., photon_noises, 'r-')
+	ax[2].plot(binsizes*1440.,
 		np.array(photon_noises)*rmses[0]/photon_noises[0], 'r--')
 
 	ax[0].set_ylabel("Relative Flux")
 	ax[1].set_ylabel("Residual")
 	ax[1].set_xlabel("Time from Eclipse Center [d]")
 	ax[2].set_ylabel("RMS")
-	ax[2].set_xlabel("Binsize [points/bin]")
+	ax[2].set_xlabel("Binsize [min]")
 	ax[2].set_xscale('log')
 	ax[2].set_yscale('log')
 
