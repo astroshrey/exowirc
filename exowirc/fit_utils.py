@@ -6,22 +6,25 @@ import arviz as az
 import decimal
 
 from scipy.signal import medfilt
+from scipy.stats import median_abs_deviation
 from astropy.stats import sigma_clip
 from celerite2.theano import terms, GaussianProcess
 
 from .io_utils import load_phot_data
 from .plot_utils import trace_plot, corner_plot, plot_aperture_opt, \
-	plot_quickfit, plot_covariates, plot_initial_map, tripleplot
+	plot_quickfit, plot_covariates, plot_initial_map, tripleplot,\
+	plot_outlier_rejection, plot_white_light_curves
 
-def clean_up(x, ys, yerrs, compars, weight_guess, cutoff_frac = 0.,
-	end_num = 0, medfilt_kernel = 11, sigma_cut = 5):
+def clean_up(x, ys, yerrs, compars, weight_guess, cutoff_frac,
+	end_num, filter_width, sigma_cut, plot = False, plot_dir = None):
 
 	#n sigma outlier rejection against a median filter
 	full_mask = np.ones(x.shape, dtype = 'bool')
 	quick_detrend = ys[0]/weight_guess.dot(compars)
-	median_filter = medfilt(quick_detrend, medfilt_kernel)
+	median_filter = medfilt(quick_detrend, filter_width)
 	filt = quick_detrend / median_filter
-	masked_arr = sigma_clip(filt, sigma = sigma_cut)
+	masked_arr = sigma_clip(filt, sigma = sigma_cut,
+		stdfunc = median_abs_deviation)
 	full_mask = ~masked_arr.mask
 
 	#flux cutoff for very rapidly varying light curve
@@ -38,12 +41,33 @@ def clean_up(x, ys, yerrs, compars, weight_guess, cutoff_frac = 0.,
 	n_reject = sum(~full_mask)
 	clip_perc = n_reject/len(full_mask)*100.
 	print(f"Clipped {clip_perc}% of the data")
+	if plot and plot_dir is not None:
+		plot_outlier_rejection(plot_dir, x, quick_detrend,
+			median_filter, full_mask)
+	return x[full_mask], ys[:,full_mask], yerrs[:,full_mask], \
+		compars[:, full_mask], full_mask
 
+def clean_after_map(x, ys, yerrs, compars, map_soln, sigma_cut, plot = True,
+	plot_dir = None):
+
+	resid = ys[0] - map_soln['full_model']
+	masked_arr = sigma_clip(resid, sigma = sigma_cut,
+		stdfunc = median_abs_deviation)
+	full_mask = ~masked_arr.mask
+
+	n_reject = sum(~full_mask)
+	clip_perc = n_reject/len(full_mask)*100.
+
+	if plot and plot_dir is not None:
+		plot_outlier_rejection(plot_dir, x, resid, np.zeros(x.shape),
+			full_mask, tag = '_afterMAP')
+
+	print(f"Clipped {clip_perc}% of the data after MAP fitting")
 	return x[full_mask], ys[:,full_mask], yerrs[:,full_mask], \
 		compars[:, full_mask], full_mask
 
 def quick_aperture_optimize(dump_dir, plot_dir, apertures,
-	flux_cutoff = 0., end_num = 0, filter_width = 31):
+	flux_cutoff = 0., end_num = 0, filter_width = 31, sigma_cut = 5):
 	print("Running quick aperture optimization...")
 	rmses = []
 	for i in apertures:
@@ -53,8 +77,8 @@ def quick_aperture_optimize(dump_dir, plot_dir, apertures,
 		weight_guess = np.array([1./len(compars)]*len(compars))
 
 		x, ys, yerrs, compars, _ = clean_up(
-			x, ys, yerrs, compars, weight_guess,
-			cutoff_frac = flux_cutoff, end_num = end_num)
+			x, ys, yerrs, compars, weight_guess, flux_cutoff,
+			end_num, filter_width, sigma_cut)
 
 		quick_detrend = ys[0]/weight_guess.dot(compars)
 		median_filter = medfilt(quick_detrend, filter_width)
@@ -100,8 +124,8 @@ def fit_lightcurve(dump_dir, plot_dir, best_ap, background_mode,
 	a_rs_prior, b_prior, jitter_prior, ror_prior = None,
 	fpfs_prior = None, tune = 1000, 
 	draws = 1500, target_accept = 0.99, phase = 'primary',
-	ldc_val = None, flux_cutoff = 0., end_num = 0,
-	gp = False, sigma_prior = None, rho_prior = None,
+	ldc_val = None, flux_cutoff = 0., end_num = 0, filter_width = 31,
+	sigma_cut = 5, gp = False, sigma_prior = None, rho_prior = None,
 	baseline_off = False):
 	
 	x_init, ys_init, yerrs_init, bkgs_init, centroid_x_init, \
@@ -111,7 +135,9 @@ def fit_lightcurve(dump_dir, plot_dir, best_ap, background_mode,
 	weight_guess_init = np.array([1./len(compars_init)]*len(compars_init))
 
 	x, ys, yerrs, compars, mask = clean_up(x_init, ys_init, yerrs_init,
-		compars_init, weight_guess_init, flux_cutoff, end_num)	
+			compars_init, weight_guess_init, flux_cutoff,
+			end_num, filter_width, sigma_cut, plot = True,
+			plot_dir = plot_dir)
 
 	cov_dict = get_covariates(bkgs_init, centroid_x_init, centroid_y_init,
 		airmass, widths, background_mode, mask)
@@ -134,6 +160,21 @@ def fit_lightcurve(dump_dir, plot_dir, best_ap, background_mode,
 	plot_initial_map(plot_dir, x, ys, yerrs, compars, map_soln, gp,
 		baseline_off)
 	print("Initial MAP found!")
+	x, ys, yerrs, compars, mask = clean_after_map(x, ys, yerrs,
+			compars, map_soln, sigma_cut, plot = True,
+			plot_dir = plot_dir)
+	if sum(~mask) > 0: #if additional outliers were rejected
+		print("Refitting MAP...")
+		model, map_soln = make_model(x, ys, yerrs, compars, 
+			weight_guess, texp, r_star_prior, t0_prior, 
+			period_prior, a_rs_prior, b_prior, jitter_prior, 
+			phase, ror_prior, fpfs_prior, ldc_val, gp,
+			sigma_prior, rho_prior, baseline_off)
+		plot_initial_map(plot_dir, x, ys, yerrs, compars, map_soln, gp,
+			baseline_off)
+		print("MAP found!")
+		
+	plot_white_light_curves(plot_dir, x, ys)
 	print("Sampling posterior...")
 	trace = sample_model(model, map_soln, tune, draws, target_accept)
 	trace.posterior.to_netcdf(f'{dump_dir}posterior.nc', engine='scipy')
