@@ -23,6 +23,15 @@ def plot_sources(img_dir, image, sources, fwhm, ann_rads):
 	plt.close()
 	return None
 
+def plot_outlier_rejection(plot_dir, x, quick_detrend, filtered, mask,
+	tag = ''):
+	plt.plot(x, quick_detrend, 'k.')
+	plt.plot(x, filtered, 'r-')
+	plt.plot(x[~mask], quick_detrend[~mask], 'r.')
+	plt.savefig(f'{plot_dir}outlier_rejection'+tag+'.png')
+	plt.close()
+	return None
+
 def plot_initial_map(plot_dir, x, ys, yerrs, compars, map_soln, gp = False,
 	baseline_off = False):
 	lc = map_soln["light_curve"]
@@ -61,6 +70,17 @@ def plot_covariates(plot_dir, x, covariate_names, covs):
 		plt.ylabel(f"{name}")
 		plt.savefig(f'{plot_dir}{name}.png')
 		plt.close()
+	return None
+
+def plot_white_light_curves(plot_dir, x, ys):
+	for i, y in enumerate(ys):
+		fmtstr = f'C{i}.' if i > 0 else 'k.'
+		lblstr = f'Comp {i}' if i > 0 else 'Target'
+		plt.plot(x, y, fmtstr, label = lblstr)
+	plt.legend(loc = 'best')
+	plt.savefig(f'{plot_dir}white_light_curves.png')
+	plt.legend(loc = 'best')
+	plt.close()
 	return None
 
 def plot_aperture_opt(plot_dir, apertures, rmses):
