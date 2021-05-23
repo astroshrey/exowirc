@@ -151,8 +151,11 @@ def calibrate_sequence(raw_dir, calib_dir, science_sequence, flat, dark, bp, hp,
 	"""
 	flat, dark, bp, hp, nonlinearity_array, correct_nonlinearity = \
 		load_calib_files(flat,dark,bp,hp,nonlinearity_fname)
-	with fits.open(bkg) as hdul:
-		background_frame = hdul[0].data
+	if bkg is not None:
+		with fits.open(bkg) as hdul:
+			background_frame = hdul[0].data
+	else:
+		background_frame = None
 	
 	for i in science_sequence:
 		image = get_img_name(raw_dir, i, style = style) 
