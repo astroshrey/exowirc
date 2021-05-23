@@ -6,15 +6,15 @@ import numpy as np
 import warnings
 
 ######## pipeline steps #################################
-remake_darks_and_flats = False 
+remake_darks_and_flats = False
 remake_bkg = False
 calibrate_data = False
 photometric_extraction = False
 fit_for_eclipse = True
 ######## calibration params ###############
-data_dir = '../../data/20210306/'
+data_dir = '/Volumes/brassnose/20210306/'
 output_dir = '../../data_products/'
-test_name = 'toi2109_final'
+test_name = 'TOI2109_Ks'
 nonlinearity_fname = None
 naming_style = 'image'
 science_seqs = [(291, 529)] 

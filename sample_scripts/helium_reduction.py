@@ -6,17 +6,17 @@ import numpy as np
 import warnings
 
 ######## pipeline steps #################################
-remake_darks_and_flats = True 
-remake_bkg = True
-calibrate_data = True
-photometric_extraction = True
+remake_darks_and_flats = False 
+remake_bkg = False
+calibrate_data = False
+photometric_extraction = False
 fit_for_eclipse = True
 ######## calibration params ###############
-data_dir = '../../data/20190816/'
+data_dir = '/Volumes/brassnose/20190816/'
 output_dir = '../../data_products/'
-test_name = 'WASP69_new_test'
+test_name = 'WASP69_helium'
 nonlinearity_fname = None
-naming_style = 'image'
+naming_style = 'wirc'
 science_seqs = [(73, 417)] 
 dark_seqs = [(438, 457)]
 flat_seq = (6, 25)
@@ -43,6 +43,9 @@ a_rs_prior = ('normal', 12.00, 0.46) #Anderson+14
 b_prior = ('normal', 0.686, 0.023) #Anderson+14
 ror_prior = ('uniform', 0., 0.25)
 jitter_prior = ('uniform', 1e-6, 1e-2)
+########### outlier rej #################
+sigma_cut = 4
+filter_width = 31
 ######## fitting params ###############
 tune = 1000            #number of burn-in steps per chain
 draws = 1500           #number of steps per chain
@@ -92,11 +95,14 @@ if __name__ == '__main__':
 			
 			warnings.simplefilter("ignore")
 			best_ap = fu.quick_aperture_optimize(dump_dir, img_dir, 
-				extraction_rads)
+				extraction_rads, filter_width = filter_width, 
+				sigma_cut = sigma_cut)
 			fu.fit_lightcurve(dump_dir, img_dir, best_ap,
 				background_mode, covariate_names, texp,
 				r_star_prior, t0_prior, period_prior,
 				a_rs_prior, b_prior, jitter_prior,
 				phase = phase, ror_prior = ror_prior,
 				tune = tune, draws = draws, 
-				target_accept = target_accept)
+				target_accept = target_accept,
+				sigma_cut = sigma_cut,
+				filter_width = filter_width)
