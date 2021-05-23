@@ -202,11 +202,12 @@ def tripleplot(plot_dir, dump_dir, x, ys, yerrs, compars, new_map,
 		alpha = 0.3, facecolor = f'r', lw = 1)
 
 	#rms vs binsize
-	binsizes = np.arange(1, 30) * texp
+	tsep = np.median(np.ediff1d(x))
+	binsizes = np.arange(1, 30) * tsep
 	rmses = [gen_rms(plot_resid, bs) for bs in binsizes]
 	photon_noise = np.median(yerrs[0])
 	photon_noises = [gen_photon_noise(
-		plot_resid, photon_noise, bs, texp) for bs in binsizes]
+		plot_resid, photon_noise, bs, tsep) for bs in binsizes]
 	photon_noise_errors = [gen_photon_noise_errors(
 		plot_resid, photon_noise, bs) for bs in binsizes]
 
