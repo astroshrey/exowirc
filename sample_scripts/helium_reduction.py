@@ -6,10 +6,10 @@ import numpy as np
 import warnings
 
 ######## pipeline steps #################################
-remake_darks_and_flats = False 
-remake_bkg = False
-calibrate_data = False
-photometric_extraction = False
+remake_darks_and_flats = True
+remake_bkg = True
+calibrate_data = True
+photometric_extraction = True
 fit_for_eclipse = True
 ######## calibration params ###############
 data_dir = '/Volumes/brassnose/20190816/'
