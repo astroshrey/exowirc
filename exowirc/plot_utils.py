@@ -74,7 +74,7 @@ def plot_covariates(plot_dir, x, covariate_names, covs):
 
 def plot_white_light_curves(plot_dir, x, ys):
 	for i, y in enumerate(ys):
-		fmtstr = f'C{i}.' if i > 0 else 'k.'
+		fmtstr = 'k.' if i == 0 else '.'
 		lblstr = f'Comp {i}' if i > 0 else 'Target'
 		plt.plot(x, y, fmtstr, label = lblstr)
 	plt.legend(loc = 'best')
