@@ -18,7 +18,7 @@ Here's how you observe your favorite transiting exoplanet with Palomar/WIRC.
 
 - If you're in the Caltech remote observing room...[fill in]
 
-- If you're connecting remotely from your home computer, first, call in to the Palomar Zoom room. Then, connect to the VNC Viewer on portal.palomar.caltech.edu:10, 11, and 12. These will be the instrument, analysis, and telescope windows respectively. If you don't see the right windows, ask the TO/SA! If the VNC won't connect after ~10 seconds, you're probably being blocked by the Palomar firewall. Make sure you gave them the right IP address before the night started. If all else fails, connect to the Caltech VPN and then try joining; Caltech IP addresses are allowed by default.
+- If you're connecting remotely from your home computer, first, call in to the Palomar Zoom room. Then, connect to the VNC Viewer on portal.palomar.caltech.edu:10, 11, and 12. These will be the instrument, analysis, and telescope windows respectively. The instrument window will have interfaces for WIRC, the analysis window will have DS9 open, and the telescope window should have the FACSUM display along with a handy picture of the all-sky cam. If you don't see the right windows, ask the TO/SA! If the VNC won't connect after ~10 seconds, you're probably being blocked by the Palomar firewall. Make sure you gave them the right IP address before the night started. If all else fails, connect to the Caltech VPN and then try joining; Caltech IP addresses are allowed by default.
 
 ### Calibrations
 
