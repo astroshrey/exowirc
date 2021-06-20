@@ -14,15 +14,15 @@ def calibrate_all(raw_dir, calib_dir, dump_dir, science_ranges, dark_ranges,
 	background_mode = None, bkg_filename = None,
 	correct_nonlinearity = False, remake_darks_and_flats = False,
 	nonlinearity_fname = None, mask_channels = []):
-
-  	""" 
+  
+	"""Calibrates all science images. 
 	
 	Parameters
 	------
 	raw_dir : string
-		Path to the directory in which all the raw data are stored
+		path to the directory in which all the raw data are stored
 	calib_dir : string
-		Path to the directory into which the calibrated data will be
+		path to the directory into which the calibrated data will be
 		stored
 	dump_dir : string
 		path to directory in which the saved background values will be
@@ -66,7 +66,6 @@ def calibrate_all(raw_dir, calib_dir, dump_dir, science_ranges, dark_ranges,
 	calib_dir : string
 		path to the directory contained calibrated science images
 	"""
-
 	assert (len(science_ranges) == len(dark_ranges)) or \
 		(len(dark_ranges) == 1)
 
@@ -305,9 +304,9 @@ def make_combined_image(dirname, calib_dir, seq_start, seq_end,
 		path to the bad/hot pixel file from the combined frame
 	"""
 	zeros = '0'*(4 - len(str(seq_end)))  # seq_end is the last img num for the 21 images to make combined from. It's saying to take that num at the end of seq and then create a var zeros which is a string '0'*4-(whateve the last num is) to create a tale end of the file name to save the combined img
-# if dark seq ends on img 21, then it creates a new file name img for the combined dark
+  # if dark seq ends on img 21, then it creates a new file name img for the combined dark
 	image_list = [get_img_name(dirname, i, style = style) for i in range(seq_start, seq_end + 1)]  # get_img_name
-  print(len(image_list))
+  # print(len(image_list))
 	stack = np.zeros([2048, 2048, len(image_list)])
 	for i,name in enumerate(image_list):
 		with fits.open(name) as hdul:
