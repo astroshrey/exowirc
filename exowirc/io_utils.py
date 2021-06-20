@@ -69,7 +69,7 @@ def init_phot_dirs(dump_dir, img_dir, rads):
 
 def init_output_direcs(path, test_name):
 	"""Initializes all output directories"""
-
+  
 	calib_dir = path + 'calibrated_' + test_name + '/'
 	dump_dir = path + 'dump_files_' + test_name + '/'
 	img_dir = path + 'image_files_' + test_name + '/'

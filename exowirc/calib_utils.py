@@ -14,14 +14,15 @@ def calibrate_all(raw_dir, calib_dir, dump_dir, science_ranges, dark_ranges,
 	background_mode = None, bkg_filename = None,
 	correct_nonlinearity = False, remake_darks_and_flats = False,
 	nonlinearity_fname = None, mask_channels = []):
-	"""Calibrates all science images. 
+
+  	""" 
 	
 	Parameters
 	------
 	raw_dir : string
-		path to the directory in which all the raw data are stored
+		Path to the directory in which all the raw data are stored
 	calib_dir : string
-		path to the directory into which the calibrated data will be
+		Path to the directory into which the calibrated data will be
 		stored
 	dump_dir : string
 		path to directory in which the saved background values will be
@@ -48,7 +49,7 @@ def calibrate_all(raw_dir, calib_dir, dump_dir, science_ranges, dark_ranges,
 	style : string, optional
 		the prefix for the image number. usually 'image' or 'wirc'
 		unless otherwise specified during observations
-	background mode : string or None, optional
+	background_mode : string or None, optional
 		either None, 'median', 'global', or 'helium' indicating the 
 		background subtraction procedure
 	bkg_filename : string, optional
@@ -65,6 +66,7 @@ def calibrate_all(raw_dir, calib_dir, dump_dir, science_ranges, dark_ranges,
 	calib_dir : string
 		path to the directory contained calibrated science images
 	"""
+
 	assert (len(science_ranges) == len(dark_ranges)) or \
 		(len(dark_ranges) == 1)
 
@@ -254,23 +256,23 @@ def make_darks_and_flats(dirname, calib_dir, dark_seqs, dark_for_flat_seq,
 		except FileNotFoundError as e:
 			print("Can't find saved darks/flats -- remaking...")
 
-	temp,_ = make_combined_image(dirname, calib_dir, *dark_for_flat_seq,
-		style = style, calibration = 'dark')
-	print('DARK FOR FLAT CREATED')
-	flat,bp = make_combined_image(dirname, calib_dir, *flat_seq,
+	temp,_ = make_combined_image(dirname, calib_dir, *dark_for_flat_seq, # * specify pointer value   dark_for_flat_seq [(int, int)]
+		style = style, calibration = 'dark') # make_combined_image returns var name temp, an array
+	print('DARK FOR FLAT CREATED')  # dark for flat : remove thermal noise over a period of time (dark - dome also covered for the same amount of time to calculate thermal sensitivity) and pixel sensitivity (flat). Dark for flat is thermal noise to be reomved from flat images because flat images also have thermal noise
+	flat,bp = make_combined_image(dirname, calib_dir, *flat_seq, # use dark for flat to correct flat images to remove thermal noise in each of the flat to make the combined flat
 		style = style, calibration = 'flat', dark_for_flat_name = temp)
 	print('COMBINED FLAT CREATED')
 	
 	darks = []
 	hps = []
-	for seq in dark_seqs:
+	for seq in dark_seqs: # for each tuple in dark_seqs, spit out dark file and hot pixel map
 		dark, hp = make_combined_image(dirname, calib_dir, *seq,
 			style = style, calibration = 'dark')
 		darks.append(dark)
 		hps.append(hp)
 		print('COMBINED DARK CREATED')
 			
-	return flat, darks, bp, hps
+	return flat, darks, bp, hps   # flat and darks are 2D arrays of scalar value. # bp and hp are 2D boolean arrays (2048 * 2048)
 
 def make_combined_image(dirname, calib_dir, seq_start, seq_end,
 	calibration = 'dark', dark_for_flat_name = None, style = 'wirc'):
@@ -302,25 +304,25 @@ def make_combined_image(dirname, calib_dir, seq_start, seq_end,
 	bpname : string
 		path to the bad/hot pixel file from the combined frame
 	"""
-	zeros = '0'*(4 - len(str(seq_end)))
-
-	image_list = [get_img_name(dirname, i, style = style) for \
-		i in range(seq_start, seq_end + 1)]
+	zeros = '0'*(4 - len(str(seq_end)))  # seq_end is the last img num for the 21 images to make combined from. It's saying to take that num at the end of seq and then create a var zeros which is a string '0'*4-(whateve the last num is) to create a tale end of the file name to save the combined img
+# if dark seq ends on img 21, then it creates a new file name img for the combined dark
+	image_list = [get_img_name(dirname, i, style = style) for i in range(seq_start, seq_end + 1)]  # get_img_name
+  print(len(image_list))
 	stack = np.zeros([2048, 2048, len(image_list)])
 	for i,name in enumerate(image_list):
 		with fits.open(name) as hdul:
-			temp = hdul[0].data
+			temp = hdul[0].data  # hdul - hdu list is a astro term. fits img files are used commonly in astro. fits have unique structure. hdu is the "header data unit" of fits file, within the index 0 of which has a header file that has identiftying info about the file like temp and other meta data. data gives value in an indivudal dark or flat image
 		print(f"Stacking image {name}...")
 		if calibration == 'dark':
-			stack[:,:,i] = temp
-		else:
+			stack[:,:,i] = temp  # stacking. stack arr is a 3d matrix. the 2D is each of the picture 2048 * 2048 * 21 images 
+		else: # stacking flat, remove dark for flat noise
 			with fits.open(dark_for_flat_name) as hdul:
 				dark_for_flat = hdul[0].data
-			dark_corr = temp - dark_for_flat
-			stack[:,:,i] = dark_corr/np.nanmedian(
-				dark_corr.flatten())
+			dark_corr = temp - dark_for_flat# take temp arr, flat file, subtract dark 
+			stack[:,:,i] = dark_corr/np.nanmedian( 
+				dark_corr.flatten())  # .flatten() makes the 2D array into a 1D array
 	combined = np.nanmedian(stack, axis = 2)
-	if calibration == 'dark':
+	if calibration == 'dark':  # scalar hp
 		print("Generating hot pixel map...")
 		hp = get_hot_px(stack) 
 		bpname = f'{calib_dir}{style}{zeros}{seq_end}'
@@ -328,23 +330,23 @@ def make_combined_image(dirname, calib_dir, seq_start, seq_end,
 		save_image(hp, bpname)
 	else:
 		print("Generating bad pixel map...")
-		bp = get_bad_px(combined)
+		bp = get_bad_px(combined) # boolean bp
 		bpname = f'{calib_dir}{style}{zeros}{seq_end}'
 		bpname += f'_combined_bp_map.fits'
 		save_image(bp, bpname)
 		bp = np.array(bp, dtype = 'bool')
-		med = np.nanmedian(combined[~bp])
-		combined = combined/med
+		med = np.nanmedian(combined[~bp])  # the combined value is the stacked flat image file. take the median of all the bp arrays that are not bad pixel
+		combined = combined/med  # 
 	savename = f'{calib_dir}{style}{zeros}{seq_end}'
 	savename += f'_combined_{calibration}.fits'
 	save_image(combined, savename)
 	return savename, bpname
 
-def get_hot_px(dark_stack, sig_hot_pix = 5):
+def get_hot_px(dark_stack, sig_hot_pix = 5):  # sig_hot_pix is standard deviation 
 	"original implement by WIRC+Pol team"
-	MAD = median_absolute_deviation(dark_stack, axis = 2)
-	hot_px = sigma_clip(MAD, sigma = sig_hot_pix)
-	return np.array(hot_px.mask, dtype = 'int')
+	MAD = median_absolute_deviation(dark_stack, axis = 2)  # median_absolute_deviation FROM ASTROPY module measure std in images. this will tell us where are the hot pixels. 2 means it's a 2 D matrix - find the hot pix in the 2D array 
+	hot_px = sigma_clip(MAD, sigma = sig_hot_pix)   #sigma_clip another AstroPy module goes through img and clips out any img above the treshhold
+	return np.array(hot_px.mask, dtype = 'int') # hot_px.mask -> mask is a built-in python object returning the same shape as obj you're applying to. (boolean arr?) all entries are true . return 2D array where hot pixel found, ret true, where good pixel found, false
 
 def stddevFilter(img, box_size):
 	""" from stackoverflow 28931265, implemented by WIRC+Pol team
