@@ -14,57 +14,43 @@ def calibrate_all(raw_dir, calib_dir, dump_dir, science_ranges, dark_ranges,
 	background_mode = None, bkg_filename = None,
 	correct_nonlinearity = False, remake_darks_and_flats = False,
 	nonlinearity_fname = None, mask_channels = []):
-  
-	"""Calibrates all science images. 
-	
+	"""Creates a sequence of science images by calibrating raw images with the dark image data ("darks") and the flat image data ("flats"). The darks remove ambient thermal noises. The flats remove dead pixels or overlysensitive hot pixels in the raw images. The resulting calibrated science images are stored inside the calib folder, and metadata of the covariates, which are objects and conditions that affected the interstellar brightness when images were taken, are stored inside the dump directory.
+
 	Parameters
-	------
+	------------
 	raw_dir : string
-		path to the directory in which all the raw data are stored
+			Path to the directory in which all the raw data are stored
 	calib_dir : string
-		path to the directory into which the calibrated data will be
-		stored
+			Path to the directory in which the [*calibrated data*] will be stored
 	dump_dir : string
-		path to directory in which the saved background values will be
-		stored
+			Path to directory in which the saved covariates background values will be stored
 	science_ranges : list of tuples
-		list of (int1, int2) tuples, where each tuple defines a
-		single linear sequence of raw science frames to be calibrated
+			List of (int1, int2) tuples, where each tuple defines a single linear sequence of raw science frames to be calibrated
 	dark_ranges : list of tuples
-		list of (int1, int2) tuples of length 1 (if all science
-		sequences were taken with the same exposure time) or length
-		len(science_ranges) (if the science sequences were taken with
-		different exposure times). Each tuple defines a single linear
-		sequence of darks from which a combined dark will be constructed
-		and used to calibrate the science sequence
+			List of (int1, int2) tuples. List is usually of length 1 if all raw images were taken with the [*same exposure time*] in one setting. List length may be longer than 1 if the raw images were taken with different [exposure times] in multiple sequences and settings. Each tuple defines a single linear sequence of darks from which a combined dark will be constructed
 	dark_for_flat_range : tuple of ints
-		a tuple (int1, int2) that defines a linear sequence of darks
-		from which a combined dark will be created to correct the flat
+			Tuple (int1, int2) that defines a linear sequence of darks from which a combined dark will be created to correct the flats
 	flat_range : tuple of ints
-		a tuple (int1, int2) that defines a linear sequence of flats
-		from which a combined flat will be created
+			Tuple (int1, int2) that defines a linear sequence of flats from which a combined flat will be created
 	destripe : boolean, optional
-		flag that indicates whether raw images should be 'destriped'
-		(aka bias levels from each readout subtracted) or not
+			Flag that indicates whether raw images should be 'destriped'. The four quadrants--up, right, bottom, left--of the telescope detector produce a stripping effect on the image output. Setting the flag subtracts bias levels from the image output
 	style : string, optional
-		the prefix for the image number. usually 'image' or 'wirc'
-		unless otherwise specified during observations
+			Prefix convention used in naming the image. Usually 'image' or 'wirc' unless otherwise specified during observations
 	background_mode : string or None, optional
-		either None, 'median', 'global', or 'helium' indicating the 
-		background subtraction procedure
+			Either None, 'median', 'global', or 'helium' indicating the background subtraction procedure. 'median'-[*insert explanation*]. 'global'-[*insert explanation*]. 'helium'-[*insert explanation*]
 	bkg_filename : string, optional
-		path to a reduced background frame
+			Path to the [*reduced background frame*]
 	correct_nonlinearity : boolean, optional
-		whether or not to do nonlinearity correction on the data
+			Flag that indicates whether or not to do nonlinearity correction on [*the data*]
 	remake_darks_and_flats : boolean, optional
-		whether or not to remake the darks and flats
-        nonlinearity_fname : string or None, optional
-		path to the file with the nonlinearity correction coefficients
+			Flag that indicates whether or not to remake the darks and flats
+	nonlinearity_fname : string or None, optional
+			Path to the file with the [*nonlinearity 	correction coefficients*]
 	
 	Returns
-	-------
+	-------------
 	calib_dir : string
-		path to the directory contained calibrated science images
+			Path to the directory containining calibrated science images [*why is it returned? is this dir used anywhere else in the code?*]
 	"""
 	assert (len(science_ranges) == len(dark_ranges)) or \
 		(len(dark_ranges) == 1)
@@ -103,52 +89,39 @@ def calibrate_all(raw_dir, calib_dir, dump_dir, science_ranges, dark_ranges,
 def calibrate_sequence(raw_dir, calib_dir, science_sequence, flat, dark, bp, hp,
 	bkg, destripe, style, background_mode, correct_nonlinearity,
 	nonlinearity_fname, mcf, covariates, mask_channels):
-	"""Calibrates all images in a science sequence.
+	"""Calibrates the raw science sequence images with darks and flats to construct an array of scalar values that represents the median of all covariates in the sky background in each image.
 	
 	Parameters
-	------
+	------------
 	raw_dir : string
-		path to the directory in which all the raw data are stored
+			Path to the directory in which all the raw data are stored
 	calib_dir : string
-		path to the directory into which the calibrated data will be
-		stored
+			Path to the directory into which the calibrated data will be stored
 	science_sequence : tuple of ints
-		a tuple (int1, int2) that defines a linear sequence of raw
-		science images to be corrected
+			A tuple (int1, int2) that defines a linear sequence of raw science images to be corrected
 	flat : string
-		path to the combined flat that will be used to calibrate the
-		science sequence
+			Path to the combined flat that will be used to calibrate the science sequence
 	dark : string
-		path to the combined dark that will be used to calibrate the
-		science sequence
+			Path to the combined dark that will be used to calibrate the science sequence
 	bp : string
-		path to the bad pixel file that will be used to calibrate the
-		science sequence
+			path to the bad pixel file that will be used to calibrate the science sequence
 	hp : string
-		path to the hot pixel file that will be used to calibrate the
-		science sequence
+			path to the hot pixel file that will be used to calibrate the science sequence
 	bkg : string or None
-		path to the sky background file that will be used to calibrate
-		the science sequence
-	destripe : boolean
-		flag that indicates whether raw images should be 'destriped'
-		(aka bias levels from each readout subtracted) or not
+			Path to the sky background file that will be used to calibrate the science sequence
+	destripe : boolean, optional
+			Flag indicating whether raw images should be 'destriped'. The four quadrants--up, right, bottom, left--of the telescope detector produce a stripping effect on the image output. Setting the flag subtracts bias levels from the image output
 	median_sub : boolean
-		flag that indicates whether the sigma-clipped median of the
-		image should be subtracted during calibration or not
-	style : string
-		the prefix for the image number. usually 'image' or 'wirc'
-		unless otherwise specified during observations
+			Flag that indicates whether the sigma-clipped median of the image should be subtracted during calibration or not
+	style : string, optional
+			Prefix convention used in naming the image. Usually 'image' or 'wirc' unless otherwise specified during observations
 	save_bkg : boolean
-		flag that indicates whether median values subtracted as
-		background should be saved or not. If True, saves to dump_dir
+			Flag that indicates whether median values subtracted as background should be saved or not. If true, saves to dump_dir
 
 	Returns
-	-------
+	--------------
 	bkgs : array of floats
-		if save_bkg is True, this will be an array of floats containing
-		the saved median background of each image. if save_bkg is False,
-		this will just be an empty array.
+		An array of floats containing the saved median background value of each image. May be an empty array if save_bkg is set to false.
 	"""
 	flat, dark, bp, hp, nonlinearity_array, correct_nonlinearity = \
 		load_calib_files(flat,dark,bp,hp,nonlinearity_fname)
@@ -176,15 +149,36 @@ def calibrate_sequence(raw_dir, calib_dir, science_sequence, flat, dark, bp, hp,
 
 ###Checking saved versions###
 def check_saved(dirname, dark_seqs, flat_seq, style):
+	"""Checks that the dark and flat files have already been created and all related metadata stored in the image header file are saved.
+
+	Parameters
+	--------------------
+	dirname : string
+			Path to the directory in which all darks and flats are stored
+	dark_seqs : list of tuples
+			List of (int1, int2) tuples. List is usually of length 1 if all raw images were taken with the [*same exposure time*] in one setting. List length may be longer than 1 if the raw images were taken with different [exposure times] in multiple sequences and settings. Each tuple defines a single linear sequence of darks from which a combined dark will be constructed
+	flat_seq : tuple of ints
+			Tuple (int1, int2) that defines a linear sequence of flat from which a combined flat will be created
+	style : string, optional
+			Prefix convention used in naming the image. Usually 'image' or 'wirc' unless otherwise specified during observations
+	Returns
+	-----------------
+	flat : string
+			Path to the combined flat image
+	darks : list of strings
+			List of paths to the combined darks
+	bpname : string
+			Path to the bad pixel file from the combined flat
+	hps : list of strings
+			Paths to the hot pixel files from the combined darks
+	"""
 	darks = []
 	hps = []
 	for dark in dark_seqs:
 		num = dark[-1]
 		zeros = '0'*(4-len(str(num)))
-		darkname = f'{dirname}{style}{zeros}{num}' + \
-			'_combined_dark.fits'
-		hpname = f'{dirname}{style}{zeros}{num}' + \
-			'_combined_hp_map.fits'
+		darkname = f'{dirname}{style}{zeros}{num}' + '_combined_dark.fits'
+		hpname = f'{dirname}{style}{zeros}{num}' + '_combined_hp_map.fits'
 		darks.append(darkname)
 		hps.append(hpname)
 		hdul = fits.open(darkname)
@@ -207,6 +201,18 @@ def check_saved(dirname, dark_seqs, flat_seq, style):
 	return flatname, darks, bpname, hps
 
 def check_saved_background(imname):
+	"""Checks that the background image has already been created and saved.
+
+	Parameters
+	----------
+	imname : string
+			Path to the background image
+
+	Returns
+	-------
+	string
+			Path to the background image
+	"""
 	hdul = fits.open(imname)
 	hdul.close()
 	print("Loaded saved background file...")
@@ -216,36 +222,31 @@ def check_saved_background(imname):
 
 def make_darks_and_flats(dirname, calib_dir, dark_seqs, dark_for_flat_seq,
 	flat_seq, style, remake_darks_and_flats = True):
-	"""Creates combined dark, dark for flat, and combined flat.
+	"""Creates combined dark, dark for flat, and combined flat for calibrating the raw science images. [*Output paths*] for flat, darks, bad pixels (bp), and hot pixels [*type of file or DS*]
 	
 	Parameters
-	------
+	-------------
 	dirname : string
-		path to the directory in which all darks and flats are stored
+			Path to the directory in which all darks and flats are stored
 	dark_seqs : list of tuples
-		list of (int1, int2) tuples, where each tuple defines a
-		single linear sequence of darks from which a combined dark will
-		be created
+			List of (int1, int2) tuples. List is usually of length 1 if all raw images were taken with the [*same exposure time*] in one setting. List length may be longer than 1 if the raw images were taken with different [exposure times] in multiple sequences and settings. Each tuple defines a single linear sequence of darks from which a combined dark will be constructed
 	dark_for_flat_seq : tuple of ints
-		a tuple (int1, int2) that defines a linear sequence of darks
-		from which a combined dark will be created to correct the flat
+			Tuple (int1, int2) that defines a linear sequence of darks from which a combined dark will be created to correct the flat
 	flat_seq : tuple of ints
-		a tuple (int1, int2) that defines a linear sequence of flats
-		from which a combined flat will be created
+			Tuple (int1, int2) that defines a linear sequence of flat from which a combined flat will be created
 	style : string, optional
-		the prefix for the image number. usually 'image' or 'wirc'
-		unless otherwise specified during observations. 
+			Prefix convention used in naming the image. Usually 'image' or 'wirc' unless otherwise specified during observations
 
 	Returns
-	-------
+	--------------
 	flat : string
-		path to the combined flat
+			Path to the combined flat image
 	darks : list of strings
-		list of paths to the combined darks
+			List of paths to the combined darks
 	bp : string
-		path to the bad pixel file from the combined flat
+			Path to the bad pixel file from the combined flat
 	hps : list of strings
-		paths to the hot pixel files from the combined darks
+			Paths to the hot pixel files from the combined darks
 	"""
 	#check if saved versions exist
 	if not remake_darks_and_flats:
@@ -278,7 +279,7 @@ def make_combined_image(dirname, calib_dir, seq_start, seq_end,
 	"""Given a dark or flat sequence, constructs a combined frame.
 
 	Parameters
-	------
+	-------------
 	dirname : string
 		path to the directory in which raw frames are stored
 	dirname : string
@@ -297,23 +298,23 @@ def make_combined_image(dirname, calib_dir, seq_start, seq_end,
 		unless otherwise specified during observations. 
 
 	Returns
-	-------
+	--------------
 	savename : string
 		path to the combined frame
 	bpname : string
 		path to the bad/hot pixel file from the combined frame
 	"""
 	zeros = '0'*(4 - len(str(seq_end)))  # seq_end is the last img num for the 21 images to make combined from. It's saying to take that num at the end of seq and then create a var zeros which is a string '0'*4-(whateve the last num is) to create a tale end of the file name to save the combined img
-  # if dark seq ends on img 21, then it creates a new file name img for the combined dark
+	# if dark seq ends on img 21, then it creates a new file name img for the combined dark
 	image_list = [get_img_name(dirname, i, style = style) for i in range(seq_start, seq_end + 1)]  # get_img_name
-  # print(len(image_list))
+	# print(len(image_list))
 	stack = np.zeros([2048, 2048, len(image_list)])
 	for i,name in enumerate(image_list):
 		with fits.open(name) as hdul:
 			temp = hdul[0].data  # hdul - hdu list is a astro term. fits img files are used commonly in astro. fits have unique structure. hdu is the "header data unit" of fits file, within the index 0 of which has a header file that has identiftying info about the file like temp and other meta data. data gives value in an indivudal dark or flat image
 		print(f"Stacking image {name}...")
 		if calibration == 'dark':
-			stack[:,:,i] = temp  # stacking. stack arr is a 3d matrix. the 2D is each of the picture 2048 * 2048 * 21 images 
+			stack[:,:,i] = temp  # stacking. stack arr is a 3d matrix of 2048 * 2048 * 21 images 
 		else: # stacking flat, remove dark for flat noise
 			with fits.open(dark_for_flat_name) as hdul:
 				dark_for_flat = hdul[0].data
@@ -321,6 +322,7 @@ def make_combined_image(dirname, calib_dir, seq_start, seq_end,
 			stack[:,:,i] = dark_corr/np.nanmedian( 
 				dark_corr.flatten())  # .flatten() makes the 2D array into a 1D array
 	combined = np.nanmedian(stack, axis = 2)
+	# I think I can break this function down into two seperate functions, and hence the condition check in the for-loop above can be slightly improved
 	if calibration == 'dark':  # scalar hp
 		print("Generating hot pixel map...")
 		hp = get_hot_px(stack) 
@@ -342,14 +344,40 @@ def make_combined_image(dirname, calib_dir, seq_start, seq_end,
 	return savename, bpname
 
 def get_hot_px(dark_stack, sig_hot_pix = 5):  # sig_hot_pix is standard deviation 
-	"original implement by WIRC+Pol team"
+	"""original implement by WIRC+Pol team
+	This function identifies pixel values that are too many standard deviations away from the median (default to 5 std) and mask them (turn them into NAN with sigma clipping)
+
+	Parameters
+	----------
+	dark_stack : [type]
+			[description]
+	sig_hot_pix : int, optional
+			[description], by default 5
+
+	Returns
+	-------
+	[type]
+			[description]
+	"""
 	MAD = median_absolute_deviation(dark_stack, axis = 2)  # median_absolute_deviation FROM ASTROPY module measure std in images. this will tell us where are the hot pixels. 2 means it's a 2 D matrix - find the hot pix in the 2D array 
 	hot_px = sigma_clip(MAD, sigma = sig_hot_pix)   #sigma_clip another AstroPy module goes through img and clips out any img above the treshhold
 	return np.array(hot_px.mask, dtype = 'int') # hot_px.mask -> mask is a built-in python object returning the same shape as obj you're applying to. (boolean arr?) all entries are true . return 2D array where hot pixel found, ret true, where good pixel found, false
 
 def stddevFilter(img, box_size):
-	""" from stackoverflow 28931265, implemented by WIRC+Pol team
-	computes standard deviation of image in a moving box of given size. 
+	"""from stackoverflow 28931265, implemented by WIRC+Pol team
+	computes standard deviation of image in a moving box of given size.
+
+	Parameters
+	----------
+	img : [type]
+			[description]
+	box_size : [type]
+			[description]
+
+	Returns
+	-------
+	[type]
+			[description]
 	"""
 	wmean, wsqrmean = (cv2.boxFilter(x, -1, (box_size, box_size), 
 		borderType=cv2.BORDER_REFLECT) for x in (img, img*img))
@@ -384,6 +412,43 @@ def make_calibrated_bkg_image(data_dir, calib_dir, bkg_seq, dark_ranges,
 	nonlinearity_fname = None, sigma_lower = 5, 
 	sigma_upper = 3, plot = False, remake_bkg = False,
 	remake_darks_and_flats = False):
+	"""[summary]
+	Creates a calibrated sky background image used for removing the sky background noise from the raw science images. 
+
+	Parameters
+	--------------------
+	data_dir : [type]
+			[description]
+	calib_dir : [type]
+			[description]
+	bkg_seq : [type]
+			[description]
+	dark_ranges : [type]
+			[description]
+	dark_for_flat_range : [type]
+			[description]
+	flat_range : [type]
+			[description]
+	naming_style : str, optional
+			[description], by default 'wirc'
+	nonlinearity_fname : [type], optional
+			[description], by default None
+	sigma_lower : int, optional
+			[description], by default 5
+	sigma_upper : int, optional
+			[description], by default 3
+	plot : bool, optional
+			[description], by default False
+	remake_bkg : bool, optional
+			[description], by default False
+	remake_darks_and_flats : bool, optional
+			[description], by default False
+
+	Returns
+	--------------------
+	[type]
+			[description]
+	"""
 
 	image_list = [get_img_name(data_dir, i,
 		style = naming_style) for \
@@ -452,7 +517,44 @@ def calibrate_image(im_name, flat, dark, bp, hp, correct_nonlinearity = False,
 	nonlinearity_array = None, destripe = False, background_mode = None,
 	background_frame = None, multicomponent_frame = None,
 	covariate_dict = None, mask_channels = []):
-	"image is file flat dark are numpy arrays"
+	"""[summary]
+
+	Parameters
+	--------------------
+	im_name : string
+			name of the raw science image
+	flat : string
+			Path to the combined flat that will be used to calibrate the science sequence
+	dark : string
+			Path to the combined dark that will be used to calibrate the science sequence
+	bp : string
+			Path to the bad pixel file that will be used to calibrate the science sequence
+	hp : string
+			Path to the hot pixel file that will be used to calibrate the science sequence
+	correct_nonlinearity : bool, optional
+			Flag indicating whether nonlinearity array calibration is needed due to the presence of really bright objects/stars in the nightsky, by default False
+	nonlinearity_array : array, optional
+				[description], by default None
+	destripe : bool, optional
+				[description], by default False
+	background_mode : [type], optional
+				[description], by default None
+	background_frame : [type], optional
+				[description], by default None
+	multicomponent_frame : [type], optional
+				[description], by default None
+	covariate_dict : [type], optional
+				[description], by default None
+	mask_channels : list, optional
+				[description], by default []
+
+	Returns
+	--------------------
+	cleaned :
+			[description]
+	covariate_dict : 
+			[description]
+	"""
 	with fits.open(im_name) as hdul:
 		hdu = hdul[0]
 		header = hdu.header
@@ -503,17 +605,31 @@ def calibrate_image(im_name, flat, dark, bp, hp, correct_nonlinearity = False,
 	return cleaned, covariate_dict
 
 def mask_bad_channels(cleaned, to_mask):
-	"""channel labeling: bottom left quad, bottom to top = 0-7
+	"""[summary]
+	channel labeling: bottom left quad, bottom to top = 0-7
 	top right, bottom to top = 8-15
 	top left, left to right = 16-23
 	bottom right, left to right = 24-31
 
 	ordering is basically all horizontal channels bottom to top,
-	then all vertical channels left to right"""
+	then all vertical channels left to right
+
+	Parameters
+	-----------------
+	cleaned : [type]
+			[description]
+	to_mask : [type]
+			[description]
+
+	Returns
+	-----------------
+	[type]
+			[description]
+	"""
 	for channel in to_mask:
 		c = channel % 16
 		xs = (0, 1024) if c < 8 else (1024, 2048)
-		ys = (c*128, (c+1)*128)
+		ys = (c * 128, (c + 1) * 128)
 		if channel > 16:
 			xs = ys
 			ys = (1024, 2048) if c < 8 else (0, 1024)
@@ -525,6 +641,22 @@ def mask_bad_channels(cleaned, to_mask):
 
 def helium_background_subtraction(cleaned, background_frame,
 	multicomponent_frame):
+	"""[summary]
+
+	Parameters
+	----------
+	cleaned : [type]
+			[description]
+	background_frame : [type]
+			[description]
+	multicomponent_frame : [type]
+			[description]
+
+	Returns
+	-------
+	[type]
+			[description]
+	"""
 	comps = np.unique(multicomponent_frame)
 	img_meds = [sigma_clipped_stats(
 		cleaned[multicomponent_frame == comp],
@@ -576,6 +708,22 @@ def destripe_image(image, sigma = 3, iters=5):
 	return clean_imm
 
 def nonlinearity_correction(image, header, nonlinearity_arr):
+	"""[summary]
+
+	Parameters
+	--------------------
+	image : [type]
+			[description]
+	header : [type]
+			[description]
+	nonlinearity_arr : [type]
+			[description]
+
+	Returns
+	--------------------
+	[type]
+			[description]
+	"""
 	assert np.shape(nonlinearity_arr) == np.shape(image)
 	n_coadd = header['COADDS']
 	image_copy = np.array(image, dtype = float) #copy image
@@ -585,6 +733,22 @@ def nonlinearity_correction(image, header, nonlinearity_arr):
 	return image_copy * n_coadd
 
 def construct_multicomponent_frame(calib_dir, dump_dir, rstepsize = 10):
+	"""Create multicomponent frame for removing the undesired ring-effect that appears in helium background images.
+
+	Parameters
+	--------------------
+	calib_dir : string
+			Path to the directory in which the [*calibrated data*] will be stored
+	dump_dir : string
+			Path to directory in which the multicomponent framed background will be stored
+	rstepsize : int, optional
+			Radial step size in pixels across the detector, by default 10
+
+	Returns
+	--------------------
+	[type]
+			[description]
+	"""
 	home = (1037, 2120)
 	mcf = np.zeros((2048, 2048))
 	dmax = 2400
@@ -599,5 +763,19 @@ def construct_multicomponent_frame(calib_dir, dump_dir, rstepsize = 10):
 	return mcf
 	
 def dist(p1, p2):
+	"""Calculate the distance bwteeen two point coordinates using the Pythagorean Theorem.
+
+	Parameters
+	--------------------
+	p1 : tuple of floats
+			Tuple (int1, int2) representing a point of xy coordinate
+	p2 : tuple of floats
+			Tuple (int1, int2) representing a point of xy coordinate
+
+	Returns
+	--------------------
+	float
+			Distance between p1 and p2
+	"""
 	return np.sqrt((p2[1] - p1[1])**2 + (p2[0] - p1[0])**2)
 

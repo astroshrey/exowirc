@@ -16,19 +16,18 @@ def find_sources(image, fwhm = 20., sigma_threshold = 20.):
 	identifies sources of a certain FWHM and a certain SNR.
 
 	Parameters
-	------
+	------------
 	image : array_like, shape(2048, 2048)
-		The finding frame in which the sources will be located
+			The finding frame in which the sources will be located
 	fwhm : float, optional
-		The approximate FWHM of all the sources to be detected
+			The approximate FWHM of all the sources to be detected
 	sigma_theshold : float, optional
-		The number of sigmas that a source needs to be to be detected
+			The number of sigmas that a source needs to be to be detected
 
 	Returns
-	-------
+	-------------
 	sources : astropy.Table
-		A Table of the detected sources with xcentroid, ycentroid,
-		and some other auxilliary stats
+			A Table of the detected sources with xcentroid, ycentroid, and some other auxilliary stats
 	"""
 	bkg_sigma = mad_std(image)
 	daofind = photutils.DAOStarFinder(fwhm = fwhm,
@@ -95,7 +94,9 @@ def get_aperture_sum_sigmas(sources, image, sigmas = [2.], error = None,
 	ann_rads = (25, 50)):
 	sigmas = list(sigmas)
 	max_rad = max(sigmas)*4.
-	img_arrs = make_img_arrs(sources, 2*max_rad, image)
+
+
+	img_arrs = make_img_arrs(sources, 2 * max_rad, image)
 	xs = []
 	ys = []
 	widths = []
@@ -171,9 +172,11 @@ def get_aperture_sum(sources, image, radii = [10.], error = None,
 		array_like, the errors will be used to produce error estimates
 		on the photometry.
 	ann_rads : tuple, optional
-		Tuple of form (float1, float2), where float1 specifies the inner
+			Tuple of form (float1, float2), where float1 specifies the inner
 		radius and float2 specifies the outer radius of the annulus
 		that will be used for local background subtraction
+	target_ind : int
+			Where the target is in the list of sources. Default to 0 because we already specified the loaction of the source coord, and function xxx moves the source with target coord to the top of file
 
 	Returns
 	-------
@@ -249,7 +252,7 @@ def get_aperture_sum(sources, image, radii = [10.], error = None,
 		local_bkgs_temp = np.array(local_bkgs_temp)
 		local_bkgs.append(local_bkgs_temp)
 	
-	#perform the aperture photometry	
+	#perform the aperture photometry	- removing background from target aperature - and calculate the final flux value and add it to the photometry table
 	ap_areas = np.array([aper.area for aper in apertures])
 	for i, aperture_area in enumerate(ap_areas):
 		table_ind = 'aperture_sum_' + str(i)
@@ -259,10 +262,38 @@ def get_aperture_sum(sources, image, radii = [10.], error = None,
 	return phot_table, np.array(xs), np.array(ys), np.array(widths)
 
 def gauss(x, *p):
+	"""Support function for fit_cut()
+
+	Parameters
+	----------
+	x : [type]
+			[description]
+
+	Returns
+	-------
+	[type]
+			[description]
+	"""
 	a, b, c = p
 	return a*np.exp(-(x - b)**2/(2*c**2))
 
 def fit_cut(arr, xval, yval):
+	"""fitting gaussian profile to the star's psf and then cut the guassian profile to calculate the fwhm -> get_aperature_sum()
+
+	Parameters
+	----------
+	arr : [type]
+			a localized 2D numpy image array around the star from the make_image_array(). array of pixel brightness.
+	xval : [type]
+			x coord
+	yval : [type]
+			y coord
+
+	Returns
+	-------
+	[type]
+			[description]
+	"""
 	p0 = [1000, arr.shape[0]/2, 5]
 	popt, _ = curve_fit(gauss, np.arange(arr.shape[0]), arr[int(xval),:],
 		p0, maxfev = 100000)
@@ -436,28 +467,24 @@ def perform_photometry(calib_dir, dump_dir, img_dir, science_ranges,
 	saved for fitting.
 	
 	Parameters
-	------
+	------------
 	calib_dir : string
-		Path to the directory holding the calibrated science images.
+			Path to the directory holding the calibrated science images.
 	dump_dir : string
-		Path to the directory into which the pickled results will be
-		saved.
+			Path to the directory into which the pickled results will be saved.
 	img_dir : string
-		Path to the directory holding all the diagnostic plots that
-		will be automatically generated.
+			Path to the directory holding all the diagnostic plots that	will be automatically generated.
 	science_ranges : list of tuples
-		list of (int1, int2) tuples, where each tuple defines a
+			list of (int1, int2) tuples, where each tuple defines a
 		single linear sequence of science images
 	target_coords : tuple, shape:(2)
-		An (x, y) tuple describing approximately where the target is
-		located
+			An (x, y) tuple describing approximately where the target is located
 	finding_fwhm : float, optional
-		The FWHM used for automatic source detection
+			The FWHM used for automatic source detection
 	extraction_rads : array_like, optional
-		A list of radii defining aperture sizes for the photometry
+			A list of radii defining aperture sizes for the photometry
 	style : string, optional
-		the prefix for the image number. usually 'image' or 'wirc'
-		unless otherwise specified during observations
+			the prefix for the image number. usually 'image' or 'wirc' unless otherwise specified during observations
 	source_detection_sigma : float, optional
 		The number of sigmas that a source needs to be to be detected
 	max_num_compars : int, optional
@@ -487,40 +514,37 @@ def perform_photometry(calib_dir, dump_dir, img_dir, science_ranges,
 		first in the list.
 
 	Returns
-	-------
+	-------------
 	clean_fnames : list of Strings
-		A list of the paths to the pickled and saved photometry and
-		error arrays as well as to the auxilliary arrays for the
-		centroids and widths
+		A list of the paths to the pickled and saved photometry and error arrays as well as to the auxilliary arrays for the centroids and widths
 	"""
+	print('\n')
+	print("test")
+	print('\n')
 	#initializing dirs and finding frame 
-	to_extract = get_science_img_list(science_ranges)
+	to_extract = get_science_img_list(science_ranges)  # full range of science images
 	n_images = len(to_extract)
-	dump_dir_phot = init_phot_dirs(dump_dir, img_dir,
-		extraction_rads)
-
-	finding_frame = load_calib_img(calib_dir,
-		to_extract[0], style = style)
+	dump_dir_phot = init_phot_dirs(dump_dir, img_dir, extraction_rads)  # init_phot_dirs() create photometry folder
+	finding_frame = load_calib_img(calib_dir, to_extract[0], style = style)  # load_calib_img() extract the first calibrated science img of the night, which is the finding_frame that identifies where the star and comparison stars are
+	print(to_extract)  # range of science images to do photometry on
 
 	#getting list of sources
-	max_lengthscale = ann_rads[1]
-	if target_and_compars is None:
-		sources = find_sources(finding_frame, fwhm = finding_fwhm, 
-			sigma_threshold = source_detection_sigma)
+	print(ann_rads)
+	max_lengthscale = ann_rads[1]  # don't go past 50 (ann_rads: [20, 50])
+	if target_and_compars is None:  # target_and_compars: list of lists of xy pixel coord of every compars in the image
+		sources = find_sources(finding_frame, fwhm = finding_fwhm, sigma_threshold = source_detection_sigma)  # find them
 		if sources is None:
-			print("NO SOURCES FOUND!!")
+			print("NO SOURCES FOUND!!") ## 
 		source_ind_temp = find_my_source(sources, target_coords)
-		sources = clean_sources(sources, max_lengthscale,
-			bad_channel = bad_channel)
+		sources = clean_sources(sources, max_lengthscale, bad_channel = bad_channel)
 		source_ind = find_my_source(sources, target_coords)
-		plot_sources(img_dir, finding_frame, sources,
-			finding_fwhm, ann_rads)
+		plot_sources(img_dir, finding_frame, sources, finding_fwhm, ann_rads)  # create an img of the annulus drawn on the stars
 		n_sources = len(sources)
-	else:
-		x_stars = np.array([tup[0] for tup in target_and_compars])
-		y_stars = np.array([tup[1] for tup in target_and_compars])
-		sources = {'xcentroid': x_stars, 'ycentroid': y_stars}
-		source_ind = 0
+	else:  # in the case target_and_compars is manually defined, create a table of the sources
+		x_stars = np.array([tup[0] for tup in target_and_compars])  # x_stars: x pixel value
+		y_stars = np.array([tup[1] for tup in target_and_compars])  # 
+		sources = {'xcentroid': x_stars, 'ycentroid': y_stars}  # sources table: used for photometry, contains location of all the stars
+		source_ind = 0  # target star is index 0 of the list
 		n_sources = len(x_stars)
 
 	#initializing data storage arrays
@@ -530,7 +554,7 @@ def perform_photometry(calib_dir, dump_dir, img_dir, science_ranges,
 		bkg_arr = np.ones(np.shape(finding_frame))
 		if bkg_fname is not None:	
 			with fits.open(bkg_fname) as hdul:
-				bkg_frame = hdul[0].data
+				bkg_frame = hdul[0].data  # put image data into bkg_frame
 
 	if background_mode is not None:
 		bkgs = np.array(load_bkgs(dump_dir))
@@ -538,44 +562,37 @@ def perform_photometry(calib_dir, dump_dir, img_dir, science_ranges,
 	#performing the extraction	
 	for i, n_img in enumerate(to_extract):
 		print('Extracting image ', n_img)
-		image = load_calib_img(calib_dir, n_img,
-			style = style)
+		image = load_calib_img(calib_dir, n_img, style = style)
 		if background_mode == 'helium':
-			mcf = load_multicomponent_frame(
-				dump_dir)
-			bkg_error_array = construct_bkg(bkg_arr, 
-				bkgs[i], mcf)
-			bkg_error_array = np.sqrt(bkg_error_array/gain)
-			error = calc_total_error(image,
-				bkg_error_array, gain)
+			mcf = load_multicomponent_frame(dump_dir)
+			bkg_error_array = construct_bkg(bkg_arr, bkgs[i], mcf)
+			bkg_error_array = np.sqrt(bkg_error_array/gain)  ## gain: prop of detector sensitivity for num of photoelectrons to make 1 count (Analog to Digital Unit ADU: 1 ADU per 1.2e-). photoelectric effect
+			error = calc_total_error(image, bkg_error_array, gain)  # error in the sky background--std of the total img
 		elif background_mode == 'global' or background_mode == 'median':
 			#error is sqrt(N)
 			if background_mode == 'global':
 				bkg_arr = np.sqrt(bkg_arr)
-			else:
+			else:  # background = 'median', for case where we don't have a background file
 				bkg_arr = np.ones((2048, 2048))
-			bkg_errors = np.sqrt(bkgs/gain)
-			bkg_error_array = bkg_arr*bkg_errors[i]
-			error = calc_total_error(image,
-				bkg_error_array, gain)
+			bkg_errors = np.sqrt(bkgs / gain)
+			bkg_error_array = bkg_arr * bkg_errors[i]
+			error = calc_total_error(image,	bkg_error_array, gain)
 		else:
-			error = np.sqrt(image/gain)
+			error = np.sqrt(image / gain)
 
-		phot_table, xs, ys, widths = get_aperture_sum(sources, image,
-			radii = extraction_rads, error = error,
-			ann_rads = ann_rads,
-			target_ind = source_ind)
+		phot_table, xs, ys, widths = get_aperture_sum(sources, image, radii = extraction_rads, error = error, ann_rads = ann_rads, target_ind = source_ind)  # !!! get brightness, position, widths of the target and compars stars
 
-		xpos[:,i] = xs
+		xpos[:,i] = xs  ## xpos is a 2D list. Fill all the rows, for col correspond to science image i, fill exposition with that star. xs is a 1D list
 		ypos[:,i] = ys
-		psf_widths[:,i] = widths
+		psf_widths[:,i] = widths ## "seeing"--clouds diffuse light, etc
+		## for ea sci img record brightness of star, which depends on the aperature size. measure ea sci img for each aperture radius size.
 		for j, rad in enumerate(extraction_rads):
 			table_ind = 'aperture_sum_' + str(j)
 			table_err_ind = 'aperture_sum_err_' + str(j)
 			phot_dict[rad][:,i] = phot_table[table_ind]
 			err_dict[rad][:,i] = phot_table[table_err_ind]
 
-	#saving files for each extraction radius seperately
+	#saving files for each extraction radius seperately - pickling to efficiently store data (compression? zip?)
 	for i, rad in enumerate(extraction_rads):
 		raw_phot = phot_dict[rad]
 		errs = err_dict[rad]
@@ -590,10 +607,28 @@ def perform_photometry(calib_dir, dump_dir, img_dir, science_ranges,
 		fnames = save_phot_data(dump_dir_temp,
 			xpos_temp, ypos_temp, psf_widths_temp,
 			raw_phot, errs)
-	print('DATA SAVED; EXTRACTION COMPLETE')
+	
+	print('DATA SAVED! EXTRACTION COMPLETE')
+	
 	return fnames
 
 def construct_bkg(background, scale_factors, multicomponent_frame):
+	"""deals with the helium data. create background frame
+
+	Parameters
+	----------
+	background : [type]
+			[description]
+	scale_factors : [type]
+			[description]
+	multicomponent_frame : [type]
+			[description]
+
+	Returns
+	-------
+	[type]
+			[description]
+	"""
 	new_bkg = np.zeros(background.shape)
 	for i in range(scale_factors.shape[0]):
 		working_mask = (multicomponent_frame == i + 1)
@@ -602,8 +637,7 @@ def construct_bkg(background, scale_factors, multicomponent_frame):
 	return new_bkg
 
 def get_source_first(source_ind, xpos, ypos, widths, phot, errs):
-	"""Moves the source to be index 0 in each of the photometry and
-	auxilliary arrays.
+	"""Moves the source to be index 0 in each of the photometry and auxilliary arrays. bubbling up target star to be index 0 in the list of stars
 	
 	Parameters
 	------
@@ -659,7 +693,7 @@ def get_source_first(source_ind, xpos, ypos, widths, phot, errs):
 
 def reject_bad_trends(xpos, ypos, widths, phot, errs, max_num_compars = 10):
 	"""Using the residual sum of squares as a best-fit statistic, retains
-	only a specified number of the best comparison stars.
+	only a specified number of the best comparison stars. Removing a bad comparison star trend because it's not varying brightness in sync with the target star
 	
 	Parameters
 	------

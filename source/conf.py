@@ -14,17 +14,17 @@ import os
 import sys
 sys.path.insert(0, os.path.abspath('..'))
 sys.path.insert(0, os.path.abspath('../exowirc'))
-print(sys.path)
+# print(sys.path)
 
 
 # -- Project information -----------------------------------------------------
 
 project = 'exowircDoc'
-copyright = '2021, Winnie'
+copyright = '2021, Caltech Knutson Group'
 author = 'Winnie'
 
 # The full version, including alpha/beta/rc tags
-release = '0.1'
+release = 'beta 1.0'
 
 
 # -- General configuration ---------------------------------------------------
@@ -34,7 +34,7 @@ release = '0.1'
 # ones.
 extensions = [
   'sphinx.ext.autodoc',
-  'sphinx.ext.napoleon'
+  'sphinx.ext.napoleon'  # allows autodoc conversion from other styles like numpy to Sphinx
 ]
 
 # Add any paths that contain templates here, relative to this directory.

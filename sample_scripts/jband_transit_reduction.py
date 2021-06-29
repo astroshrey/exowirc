@@ -5,14 +5,20 @@ import exowirc.io_utils as iu
 import numpy as np
 import warnings
 
+import os
+if os.getcwd() == '/Users/winniejeng/Desktop/exowirc/':
+    pass
+else:
+    breakpoint
 ######## pipeline steps #################################
 remake_darks_and_flats = False # true-> call
-calibrate_data = True
-photometric_extraction = False
+remake_bkg = False
+calibrate_data = False
+photometric_extraction = True
 fit_for_eclipse = False
 ######## calibration params ###############
-data_dir = '/Users/winniejeng/Volumes/data/Kepler289/'
-output_dir = '/Users/winniejeng/Desktop/exowirc/exowirc/Output/'
+data_dir = '/Volumes/External/exowirc_data/Kepler289/'
+output_dir = '/Volumes/External/exowirc_data/Output/'
 # data_dir = '/Volumes/data/Kepler289/'
 # output_dir = '../exowirc/Output/'
 test_name = 'test1'
@@ -20,7 +26,7 @@ test_name = 'test1'
 # test_name = 'Kepler289_J'
 nonlinearity_fname = None
 naming_style = 'image'
-science_seqs = [(65, 456)] 
+science_seqs = [(65, 66)]   # 65-458, but could set for smaller range for testing calibration function
 dark_seqs = [(458, 477)]
 flat_seq = (22, 41) # img range
 dark_for_flat_seq = (2, 21)
@@ -77,7 +83,6 @@ if __name__ == '__main__':
 				ann_rads = ann_rads,
 				source_detection_sigma = source_detection_sigma,
 				max_num_compars = max_num_compars)	
-
 	if fit_for_eclipse:
 		with warnings.catch_warnings():
 			
