@@ -5,25 +5,16 @@ import exowirc.io_utils as iu
 import numpy as np
 import warnings
 
-import os
-if os.getcwd() == '/Users/winniejeng/Desktop/exowirc/':
-    pass
-else:
-    breakpoint
 ######## pipeline steps #################################
-remake_darks_and_flats = False # true-> call
-remake_bkg = False
-calibrate_data = False
-photometric_extraction = True
+remake_darks_and_flats = True # true-> call
+remake_bkg = True
+calibrate_data = True
+photometric_extraction = False
 fit_for_eclipse = False
 ######## calibration params ###############
 data_dir = '/Volumes/External/exowirc_data/Kepler289/'
 output_dir = '/Volumes/External/exowirc_data/Output/'
-# data_dir = '/Volumes/data/Kepler289/'
-# output_dir = '../exowirc/Output/'
 test_name = 'test1'
-# output_dir = '../../data_products/'
-# test_name = 'Kepler289_J'
 nonlinearity_fname = None
 naming_style = 'image'
 science_seqs = [(65, 66)]   # 65-458, but could set for smaller range for testing calibration function

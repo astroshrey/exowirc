@@ -61,9 +61,9 @@ def accurate_cent(data, xc, yc, radius=3.0, max_iter=100, max_pos_error=1.e-2):
 	Returns
 	-------
 	xc : float
-		New calculated x centroid
+		x centroid
 	yc : float
-		New calculated y centroid
+		y centroid
 	"""
 	data = np.array(data)
 	xs = np.array([np.arange(data.shape[1])] * data.shape[0])
@@ -90,65 +90,85 @@ def accurate_cent(data, xc, yc, radius=3.0, max_iter=100, max_pos_error=1.e-2):
 	print("couldn't converge on the source")
 	return old_xc, old_yc
 
-def get_aperture_sum_sigmas(sources, image, sigmas = [2.], error = None,
-	ann_rads = (25, 50)):
-	sigmas = list(sigmas)
-	max_rad = max(sigmas)*4.
+# def get_aperture_sum_sigmas(sources, image, sigmas = [2.], error = None,
+# 	ann_rads = (25, 50)):
+# 	"""[summary]
+
+# 	Parameters
+# 	----------
+# 	sources : [type]
+# 			[description]
+# 	image : [type]
+# 			[description]
+# 	sigmas : list, optional
+# 			[description], by default [2.]
+# 	error : [type], optional
+# 			[description], by default None
+# 	ann_rads : tuple, optional
+# 			[description], by default (25, 50)
+
+# 	Returns
+# 	-------
+# 	[type]
+# 			[description]
+# 	"""
+# 	sigmas = list(sigmas)
+# 	max_rad = max(sigmas)*4.
 
 
-	img_arrs = make_img_arrs(sources, 2 * max_rad, image)
-	xs = []
-	ys = []
-	widths = []
+# 	img_arrs = make_img_arrs(sources, 2 * max_rad, image)
+# 	xs = []
+# 	ys = []
+# 	widths = []
 	
-	#calculating centroids and widths for all sources
-	for i, arr in enumerate(img_arrs):
-		x_coord_ref = int(np.array(sources['xcentroid'])[i])
-		y_coord_ref = int(np.array(sources['ycentroid'])[i])
-		xval, yval = accurate_cent(arr, arr.shape[0]/2,
-			arr.shape[1]/2, max_rad)
-		x_centroid = x_coord_ref + xval - arr.shape[0]/2
-		y_centroid = y_coord_ref + yval - arr.shape[1]/2
-		width = fit_cut(arr, xval, yval)
-		xs.append(x_centroid)
-		ys.append(y_centroid)
-		widths.append(width)
-	xs = np.array(xs)
-	ys = np.array(ys)
-	widths = np.array(widths)
-	positions = [(x,y) for x, y in zip(xs, ys)]
-	apertures = [photutils.CircularAperture(positions, r = sigma*width) \
-		for sigma, width in zip(sigmas, widths)]
-	phot_table = photutils.aperture_photometry(image, apertures,
-		error = error)
+# 	#calculating centroids and widths for all sources
+# 	for i, arr in enumerate(img_arrs):
+# 		x_coord_ref = int(np.array(sources['xcentroid'])[i])
+# 		y_coord_ref = int(np.array(sources['ycentroid'])[i])
+# 		xval, yval = accurate_cent(arr, arr.shape[0]/2,
+# 			arr.shape[1]/2, max_rad)
+# 		x_centroid = x_coord_ref + xval - arr.shape[0]/2
+# 		y_centroid = y_coord_ref + yval - arr.shape[1]/2
+# 		width = fit_cut(arr, xval, yval)
+# 		xs.append(x_centroid)
+# 		ys.append(y_centroid)
+# 		widths.append(width)
+# 	xs = np.array(xs)
+# 	ys = np.array(ys)
+# 	widths = np.array(widths)
+# 	positions = [(x,y) for x, y in zip(xs, ys)]
+# 	apertures = [photutils.CircularAperture(positions, r = sigma*width) \
+# 		for sigma, width in zip(sigmas, widths)]
+# 	phot_table = photutils.aperture_photometry(image, apertures,
+# 		error = error)
 
-	#estimating local background using an annulus
-	ann = [photutils.CircularAnnulus(positions, r_in = ann_rads[0], 
-		r_out = ann_rads[1]) for rad in radii]
-	ann_masks = [annulus.to_mask() for annulus in ann]
-	local_bkgs = []
-	for masks in ann_masks:
-		local_bkgs_temp = []
-		for mask in masks:
-			mask_data = mask.multiply(image)[mask.data > 0]
-			flat_mask_data = mask_data.flatten()
-			clipped_data, low, up = sigmaclip(flat_mask_data,
-				low = 2.0, high = 2.0)
-			local_bkgs_temp.append(np.median(clipped_data))
-		local_bkgs_temp = np.array(local_bkgs_temp)
-		local_bkgs.append(local_bkgs_temp)
+# 	#estimating local background using an annulus
+# 	ann = [photutils.CircularAnnulus(positions, r_in = ann_rads[0], 
+# 		r_out = ann_rads[1]) for rad in radii]
+# 	ann_masks = [annulus.to_mask() for annulus in ann]
+# 	local_bkgs = []
+# 	for masks in ann_masks:
+# 		local_bkgs_temp = []
+# 		for mask in masks:
+# 			mask_data = mask.multiply(image)[mask.data > 0]
+# 			flat_mask_data = mask_data.flatten()
+# 			clipped_data, low, up = sigmaclip(flat_mask_data,
+# 				low = 2.0, high = 2.0)
+# 			local_bkgs_temp.append(np.median(clipped_data))
+# 		local_bkgs_temp = np.array(local_bkgs_temp)
+# 		local_bkgs.append(local_bkgs_temp)
 	
-	#perform the aperture photometry	
-	ap_areas = np.array([aper.area for aper in apertures])
-	for i, aperture_area in enumerate(ap_areas):
-		if len(ap_areas) <= 1:
-			table_ind = 'aperture_sum'
-		else:
-			table_ind = 'aperture_sum_' + str(i)
-		extra_bkg_in_ap = aperture_area*local_bkgs[i]
-		phot_table[table_ind] = phot_table[table_ind] - extra_bkg_in_ap
+# 	#perform the aperture photometry	
+# 	ap_areas = np.array([aper.area for aper in apertures])
+# 	for i, aperture_area in enumerate(ap_areas):
+# 		if len(ap_areas) <= 1:
+# 			table_ind = 'aperture_sum'
+# 		else:
+# 			table_ind = 'aperture_sum_' + str(i)
+# 		extra_bkg_in_ap = aperture_area*local_bkgs[i]
+# 		phot_table[table_ind] = phot_table[table_ind] - extra_bkg_in_ap
 
-	return phot_table, np.array(xs), np.array(ys), np.array(widths)
+# 	return phot_table, np.array(xs), np.array(ys), np.array(widths)
 
 
 
@@ -278,7 +298,7 @@ def gauss(x, *p):
 	return a*np.exp(-(x - b)**2/(2*c**2))
 
 def fit_cut(arr, xval, yval):
-	"""fitting gaussian profile to the star's psf and then cut the guassian profile to calculate the fwhm -> get_aperature_sum()
+	"""fitting gaussian profile to the star's psf (point-spread-function) and then cut the guassian profile to calculate the fwhm -> get_aperature_sum()
 
 	Parameters
 	----------
@@ -518,9 +538,6 @@ def perform_photometry(calib_dir, dump_dir, img_dir, science_ranges,
 	clean_fnames : list of Strings
 		A list of the paths to the pickled and saved photometry and error arrays as well as to the auxilliary arrays for the centroids and widths
 	"""
-	print('\n')
-	print("test")
-	print('\n')
 	#initializing dirs and finding frame 
 	to_extract = get_science_img_list(science_ranges)  # full range of science images
 	n_images = len(to_extract)
@@ -616,16 +633,16 @@ def construct_bkg(background, scale_factors, multicomponent_frame):
 	"""deals with the helium data. create background frame
 
 	Parameters
-	----------
+	-----------------
 	background : [type]
 			[description]
 	scale_factors : [type]
-			[description]
+			when taking background images, stack them on top of ea to get avg. Brightness changes from image to image. So we scale all images so that on average all images have same brightness. So if first img has 100 counts on avg, and second img has 150 counts.
 	multicomponent_frame : [type]
 			[description]
 
 	Returns
-	-------
+	--------------
 	[type]
 			[description]
 	"""

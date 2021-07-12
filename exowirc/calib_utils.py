@@ -6,6 +6,8 @@ from astropy.stats import median_absolute_deviation, sigma_clip, \
 	sigma_clipped_stats
 import cv2
 
+np.set_printoptions(threshold=np.inf)
+
 from .io_utils import get_science_img_list, load_calib_files, \
 	get_img_name, save_image, save_multicomponent_frame, save_covariates
 
@@ -89,7 +91,7 @@ def calibrate_all(raw_dir, calib_dir, dump_dir, science_ranges, dark_ranges,
 def calibrate_sequence(raw_dir, calib_dir, science_sequence, flat, dark, bp, hp,
 	bkg, destripe, style, background_mode, correct_nonlinearity,
 	nonlinearity_fname, mcf, covariates, mask_channels):
-	"""Calibrates the raw science sequence images with darks and flats to construct an array of scalar values that represents the median of all covariates in the sky background in each image.
+	"""Calibrates the raw science sequence images with darks and flats to construct an array of scalar values that represents the median of all covariates in the sky background in each image
 	
 	Parameters
 	------------
@@ -201,17 +203,17 @@ def check_saved(dirname, dark_seqs, flat_seq, style):
 	return flatname, darks, bpname, hps
 
 def check_saved_background(imname):
-	"""Checks that the background image has already been created and saved.
+	"""Checks that the background image has already been created and saved
 
 	Parameters
 	----------
 	imname : string
-			Path to the background image
+			Path to the background image file
 
 	Returns
 	-------
 	string
-			Path to the background image
+			name of the background image file
 	"""
 	hdul = fits.open(imname)
 	hdul.close()
@@ -222,7 +224,7 @@ def check_saved_background(imname):
 
 def make_darks_and_flats(dirname, calib_dir, dark_seqs, dark_for_flat_seq,
 	flat_seq, style, remake_darks_and_flats = True):
-	"""Creates combined dark, dark for flat, and combined flat for calibrating the raw science images. [*Output paths*] for flat, darks, bad pixels (bp), and hot pixels [*type of file or DS*]
+	"""Creates combined dark, dark for flat, and combined flat for calibrating the raw science images. Output flat, darks, bad pixels (bp), and hot pixels metadata into the local directories.
 	
 	Parameters
 	-------------
@@ -276,33 +278,31 @@ def make_darks_and_flats(dirname, calib_dir, dark_seqs, dark_for_flat_seq,
 
 def make_combined_image(dirname, calib_dir, seq_start, seq_end,
 	calibration = 'dark', dark_for_flat_name = None, style = 'wirc'):
-	"""Given a dark or flat sequence, constructs a combined frame.
+	"""Constructs a combined frame, given either a dark or flat image sequence
 
 	Parameters
 	-------------
 	dirname : string
-		path to the directory in which raw frames are stored
+			Path to the directory in which raw frames are stored
 	dirname : string
-		path to the directory you want calibrated frames saved
+			Path to the directory you want calibrated frames saved
 	seq_start : int
-		starting image number for the sequence
+			Starting image number for the sequence
 	seq_end : int
-		ending image number for the sequence
+			Ending image number for the sequence
 	calibration : string
-		either 'dark' or 'flat'
+			Either 'dark' or 'flat'
 	dark_for_flat_name : string
-		path to the dark used to correct flat-fielding images;
-		must not be None if making a flat
+			Path to the dark used to correct flat-fielding images; must not be None if making a flat
 	style : string, optional
-		the prefix for the image number. usually 'image' or 'wirc'
-		unless otherwise specified during observations. 
+			The prefix for the image number. usually 'image' or 'wirc' unless otherwise specified during observations. 
 
 	Returns
 	--------------
 	savename : string
-		path to the combined frame
+			Path to the combined frame
 	bpname : string
-		path to the bad/hot pixel file from the combined frame
+			Path to the bad/hot pixel file from the combined frame
 	"""
 	zeros = '0'*(4 - len(str(seq_end)))  # seq_end is the last img num for the 21 images to make combined from. It's saying to take that num at the end of seq and then create a var zeros which is a string '0'*4-(whateve the last num is) to create a tale end of the file name to save the combined img
 	# if dark seq ends on img 21, then it creates a new file name img for the combined dark
@@ -325,7 +325,7 @@ def make_combined_image(dirname, calib_dir, seq_start, seq_end,
 	# I think I can break this function down into two seperate functions, and hence the condition check in the for-loop above can be slightly improved
 	if calibration == 'dark':  # scalar hp
 		print("Generating hot pixel map...")
-		hp = get_hot_px(stack) 
+		hp = get_hot_px(stack)
 		bpname = f'{calib_dir}{style}{zeros}{seq_end}'
 		bpname += f'_combined_hp_map.fits'
 		save_image(hp, bpname)
@@ -344,40 +344,48 @@ def make_combined_image(dirname, calib_dir, seq_start, seq_end,
 	return savename, bpname
 
 def get_hot_px(dark_stack, sig_hot_pix = 5):  # sig_hot_pix is standard deviation 
-	"""original implement by WIRC+Pol team
-	This function identifies pixel values that are too many standard deviations away from the median (default to 5 std) and mask them (turn them into NAN with sigma clipping)
+	"""
+	Identify pixel values that are more than five standard deviations away from the median and then mask them (turn them into NAN with sigma clipping). Originally implemented by the WIRC+Pol team
 
 	Parameters
-	----------
-	dark_stack : [type]
-			[description]
+	--------------------
+	dark_stack : numpy.ndarray of floats
+			hot pixel value in the dark image stack
 	sig_hot_pix : int, optional
-			[description], by default 5
+			sigma bound for the hot pixel value, by default 5
 
 	Returns
-	-------
-	[type]
-			[description]
+	--------------------
+	numpy array of booleans
+			Each boolean value correspond to a pixel. 0 indicates a good pixel, 1 indicates an oversaturated pixel, i.e. hot
 	"""
-	MAD = median_absolute_deviation(dark_stack, axis = 2)  # median_absolute_deviation FROM ASTROPY module measure std in images. this will tell us where are the hot pixels. 2 means it's a 2 D matrix - find the hot pix in the 2D array 
+
+	MAD = median_absolute_deviation(dark_stack, axis = 2)  
+
+	# median_absolute_deviation FROM ASTROPY module measure std in images. this will tell us where are the hot pixels. 2 means it's a 2 D matrix - find the hot pix in the 2D array 
 	hot_px = sigma_clip(MAD, sigma = sig_hot_pix)   #sigma_clip another AstroPy module goes through img and clips out any img above the treshhold
+	# print("\n")
+	# print("hotpixel \n")
+	# print(type(hot_px.mask))
+	# print(np.array(hot_px.mask, dtype = 'int'))
+	# print("\n")
 	return np.array(hot_px.mask, dtype = 'int') # hot_px.mask -> mask is a built-in python object returning the same shape as obj you're applying to. (boolean arr?) all entries are true . return 2D array where hot pixel found, ret true, where good pixel found, false
 
 def stddevFilter(img, box_size):
-	"""from stackoverflow 28931265, implemented by WIRC+Pol team
-	computes standard deviation of image in a moving box of given size.
+	"""
+	Compute the local standard deviation of the  pixel count in an image in a moving box of given size.	Originally implemented by the WIRC+Pol team (stackoverflow 28931265)
 
 	Parameters
-	----------
-	img : [type]
-			[description]
-	box_size : [type]
-			[description]
+	--------------------
+	img : numpy.ndarray of floats
+			2048 x 2048 2D image array of pixel count
+	box_size : int
+			Moving median across the image used for calculating the local standard deviation
 
 	Returns
-	-------
-	[type]
-			[description]
+	--------------------
+	float
+			Standard deviation of the pixel value from the median value within the moving box of an image
 	"""
 	wmean, wsqrmean = (cv2.boxFilter(x, -1, (box_size, box_size), 
 		borderType=cv2.BORDER_REFLECT) for x in (img, img*img))
@@ -385,7 +393,25 @@ def stddevFilter(img, box_size):
 
 def get_bad_px(flat, local_sig_bad_pix = 3, global_sig_bad_pix = 9,
 	local_box_size = 11):
-	"original implement by WIRC+Pol team"
+	"""
+	Originally implemented by the WIRC+Pol team
+	Parameters
+	----------
+	flat : numpy.ndarray of floats
+			Array containing data of the .fits file for flat images
+	local_sig_bad_pix : int, optional
+			Pixel values with standard deviations above the local surrounding pixels as set by box_size, by default 3
+	global_sig_bad_pix : int, optional
+			Pixel values with standard deviations above the median of the whole image, by default 9
+	local_box_size : int, optional
+			Pixel box size from which the local average standard deviation of pixels is taken, by default 11
+
+	Returns
+	-------
+	numpy.ndarray of booleans
+			Each boolean value correspond to a pixel. 0 indicates a good pixel and 1 indicates a broken pixel, i.e. bad.
+	"""
+
 	median_flat = median_filter(flat, local_box_size)
 	stddev_im = stddevFilter(flat, local_box_size)
 	local_bad_pix = np.abs(median_flat - flat) > local_sig_bad_pix*stddev_im
@@ -395,14 +421,55 @@ def get_bad_px(flat, local_sig_bad_pix = 3, global_sig_bad_pix = 9,
 
 	bad_px = np.logical_or(global_bad_px, local_bad_pix)
 	bad_px = np.logical_or(bad_px, non_positive)
+	# print("\n")
+	# print("return \n")
+	# print(type(np.array(bad_px, dtype = 'int')))
+	# print(np.array(bad_px, dtype = 'int'))
+	# print("\n")
 	return np.array(bad_px, dtype = 'int')
 
 def clean_bad_pix(image, bad_px_map, replacement_box = 5):
-	"original implement by WIRC+Pol team"
+	"""
+	Takes input image of t
+	Originally implemented by WIRC+Pol team
+
+	Parameters
+	----------
+	image : numpy.ndarray of floats
+			2D array of floats containing data of the .fits file
+	bad_px_map : numpy.ndarray of booleans
+			Boolean flag for each pixel indicating whether or not the pixel is bad, i.e. broken
+	replacement_box : int, optional
+			Box size around which we use to replace the bad pixel so if you have a bad pixel, then we take a box of 5 pix by 5 pix and take the avg of those 5 by 5 take avg and replace bad pix with the average, by default 5
+
+	Returns
+	-------
+	numpy.ndarray of floats
+			masked 2D array of floats containing data of the .fits file, where bad pixels are masked with NAN
+	"""
+
+	# print("\n")
+	# print("image \n")
+	# print(type(image))
+	# print(image)
+	# print("\n")
+
+	# print("\n")
+	# print("bad_px_map \n")
+	# print(type(bad_px_map))
+	# print(bad_px_map)
+	# print("\n")
+
 	bad_px_map = np.logical_or(bad_px_map, image <= 0)
 	bad_px_map = np.logical_or(bad_px_map, ~np.isfinite(image))
 	med_fil = median_filter(image, size = replacement_box)
 	cleaned = image*~bad_px_map + med_fil*bad_px_map
+
+	# print("\n")
+	# print("return \n")
+	# print(type(cleaned))
+	# print(cleaned)
+	# print("\n")
 	return cleaned
 
 ###Background construction###
@@ -412,42 +479,42 @@ def make_calibrated_bkg_image(data_dir, calib_dir, bkg_seq, dark_ranges,
 	nonlinearity_fname = None, sigma_lower = 5, 
 	sigma_upper = 3, plot = False, remake_bkg = False,
 	remake_darks_and_flats = False):
-	"""[summary]
-	Creates a calibrated sky background image used for removing the sky background noise from the raw science images. 
+	"""
+	Create a calibrated sky background image from the sky background frames
 
 	Parameters
 	--------------------
-	data_dir : [type]
-			[description]
-	calib_dir : [type]
-			[description]
-	bkg_seq : [type]
-			[description]
-	dark_ranges : [type]
-			[description]
-	dark_for_flat_range : [type]
-			[description]
-	flat_range : [type]
-			[description]
-	naming_style : str, optional
-			[description], by default 'wirc'
-	nonlinearity_fname : [type], optional
-			[description], by default None
+	data_dir : string
+			Path to the data directory
+	calib_dir : string
+			Path to the calibrated directory in which the calibrated background image will be stored
+	bkg_seq : list of tuples
+			List of (int1, int2) tuples corresponding to the background images used to construct background frames
+	dark_ranges : list of tuples
+			List of (int1, int2) tuples corresponding to image numbers of dark images
+	dark_for_flat_range : list of tuples
+			List of (int1, int2) tuples. List is usually of length 1 if all raw images were taken with the [*same exposure time*] in one setting. List length may be longer than 1 if the raw images were taken with different [exposure times] in multiple sequences and settings. Each tuple defines a single linear sequence of darks from which a combined dark will be constructed
+	flat_range : tuple of ints
+			Tuple (int1, int2) that defines a linear sequence of flats from which a combined flat will be created
+	naming_style : string, optional
+			Prefix convention used in naming the image, by default 'wirc'
+	nonlinearity_fname : string, optional
+			Path to the file name with nonlinearity array, by default None
 	sigma_lower : int, optional
-			[description], by default 5
+			Sigma floor to be clipped where outliers are removed from the sky background frame, by default 5
 	sigma_upper : int, optional
-			[description], by default 3
+			Sigma ceiling to be clipped where outliers are removed from the sky background frame, by default 3
 	plot : bool, optional
-			[description], by default False
+			Flag that indicates whether or not to plot all the individual background frame, by default False
 	remake_bkg : bool, optional
-			[description], by default False
+			Flag that indicates whether or not to remake the background, by default False
 	remake_darks_and_flats : bool, optional
-			[description], by default False
+			Flag that indicates whether or not to remake the darks and flats, by default False
 
 	Returns
 	--------------------
-	[type]
-			[description]
+	string
+			Path to the background image
 	"""
 
 	image_list = [get_img_name(data_dir, i,
@@ -497,11 +564,34 @@ def make_calibrated_bkg_image(data_dir, calib_dir, bkg_seq, dark_ranges,
 	save_image(background.filled(0.), imname)
 	print("BACKGROUND FRAME CREATED")
 
+	print("\n")
+	print("return imname \n")
+	print(type(imname))
+	print(imname)
+	print("\n")
 	return imname
 
 ###Image calibration###
 
 def get_bjd(header):
+	"""
+	Get the timestamp of the image given the image header.
+
+	Parameters
+	----------
+	header : astropy.io.fits.header.Header
+			Header containing metadata of the image taken
+
+	Returns
+	-------
+	float
+			Datetime in floating point value of the image taken
+	"""
+	# print("\n")
+	# print("header \n")
+	# print(type(header))
+	# print(header)
+	# print("\n")
 	date_in = header['UTSHUT']
 	target_pos = coord.SkyCoord(header['RA'], header['DEC'],
 		unit = (u.hourangle, u.deg), frame='icrs')
@@ -511,13 +601,20 @@ def get_bjd(header):
 	ltt_bary = time.light_travel_time(target_pos)
 	time = time.tdb+ltt_bary
 	bjd_tdb = time.jd+half_exptime
+
+	# print("\n")
+	# print("return \n")
+	# print(type(bjd_tdb))
+	# print(bjd_tdb)
+	# print("\n")
 	return bjd_tdb
 	
 def calibrate_image(im_name, flat, dark, bp, hp, correct_nonlinearity = False,
 	nonlinearity_array = None, destripe = False, background_mode = None,
 	background_frame = None, multicomponent_frame = None,
 	covariate_dict = None, mask_channels = []):
-	"""[summary]
+	"""
+	Helper function for calibrate_sequence() to calibrate a raw science image.
 
 	Parameters
 	--------------------
@@ -534,27 +631,39 @@ def calibrate_image(im_name, flat, dark, bp, hp, correct_nonlinearity = False,
 	correct_nonlinearity : bool, optional
 			Flag indicating whether nonlinearity array calibration is needed due to the presence of really bright objects/stars in the nightsky, by default False
 	nonlinearity_array : array, optional
-				[description], by default None
+			The array storing erroneous pixel count that have gone non-linear due to detector failure, by default None
 	destripe : bool, optional
-				[description], by default False
-	background_mode : [type], optional
-				[description], by default None
-	background_frame : [type], optional
-				[description], by default None
-	multicomponent_frame : [type], optional
-				[description], by default None
-	covariate_dict : [type], optional
-				[description], by default None
+			Flag indicating that a segment in the detector is acting erroneously so that part of the image needs to be masked, by default False
+	background_mode : string, optional
+			'median', 'global', or 'helium', indicating the condition of the sky background, by default None
+	background_frame : numpy.ndarray, optional
+			2048 x 2048 numpy arrays of sky background images used for correcting sky background brightness, by default None
+	multicomponent_frame : numpy.ndarray, optional
+			2048 x 2048 numpy arrays of pixel representing radial distances from the filter center of the helium arc, used for correcting brightness variation due to the arc structure, by default None
+	covariate_dict : dictionary, optional
+			Dictionary containing the covariate types as keys with empty values to be filled, by default None
 	mask_channels : list, optional
-				[description], by default []
+			Channels of the detector that count pixels, by default []
 
 	Returns
 	--------------------
-	cleaned :
-			[description]
-	covariate_dict : 
-			[description]
+	cleaned : numpy.ndarray of floats
+			Array of the cleaned image data 
+	covariate_dict : dictionary
+			Covariates values of the specified covariance type
 	"""
+
+	print("\n")
+	print("mult frame \n")
+	print(type(multicomponent_frame))
+	print(multicomponent_frame)
+	print("\n")
+
+	print("\n")
+	print("background_frame \n")
+	print(type(background_frame))
+	print(background_frame)
+	print("\n")
 	with fits.open(im_name) as hdul:
 		hdu = hdul[0]
 		header = hdu.header
@@ -602,29 +711,41 @@ def calibrate_image(im_name, flat, dark, bp, hp, correct_nonlinearity = False,
 				covariate_dict[covariate].append(
 					header[covariate])
 
+	# print("\n")
+	# print("return \n")
+	# print(type(cleaned))
+	# print(cleaned)
+	# print("\n")
+
+	# print("\n")
+	# print("return \n")
+	# print(type(covariate_dict))
+	# print(covariate_dict)
+	# print("\n")
+
 	return cleaned, covariate_dict
 
 def mask_bad_channels(cleaned, to_mask):
-	"""[summary]
-	channel labeling: bottom left quad, bottom to top = 0-7
-	top right, bottom to top = 8-15
-	top left, left to right = 16-23
-	bottom right, left to right = 24-31
+	"""Mask out any bad channel in the pixel array by turning all pixel count in the malfunctioning channel into NAN. Ordering of the channel is as follow:
 
-	ordering is basically all horizontal channels bottom to top,
-	then all vertical channels left to right
+	Bottom left quad, bottom to top = 0-7
+	Top right, bottom to top = 8-15
+	Top left, left to right = 16-23
+	Bottom right, left to right = 24-31
+
+	(Bottom to top, left to right)
 
 	Parameters
 	-----------------
-	cleaned : [type]
-			[description]
-	to_mask : [type]
-			[description]
+	cleaned : numpy.ndarray
+			2048 x 2048 mostly corrected science image that has been dark sub, flat fielded, bad pixels removed
+	to_mask : array of integer
+			each integer corresponds to the channel to be masked
 
 	Returns
 	-----------------
-	[type]
-			[description]
+	numpy.ndarray
+			the masked image array
 	"""
 	for channel in to_mask:
 		c = channel % 16
@@ -641,21 +762,21 @@ def mask_bad_channels(cleaned, to_mask):
 
 def helium_background_subtraction(cleaned, background_frame,
 	multicomponent_frame):
-	"""[summary]
+	"""Remove the unwanted radial arc effect that is present in helium background images including the normal sky background
 
 	Parameters
-	----------
-	cleaned : [type]
-			[description]
-	background_frame : [type]
-			[description]
-	multicomponent_frame : [type]
-			[description]
+	--------------------
+	cleaned : numpy.ndarray
+			2048 x 2048 corrected science images that are dark and flat corrected and hot-pixel and bad-pixel removed
+	background_frame : numpy.ndarray
+			Frame of the background sky images used for calibrating sky background brightness
+	multicomponent_frame : numpy.ndarray
+			Special background frame used for reducing the data taken with helium filter
 
 	Returns
-	-------
-	[type]
-			[description]
+	--------------------
+	numpy.ndarray
+			Corrected science images adjusted by background frame and multicomponent background frame
 	"""
 	comps = np.unique(multicomponent_frame)
 	img_meds = [sigma_clipped_stats(
@@ -676,11 +797,25 @@ def helium_background_subtraction(cleaned, background_frame,
 	return cleaned - new_arr, scale_factors
 	
 def destripe_image(image, sigma = 3, iters=5):
-	"""Destripe the detector by subtracting the median
-	of each row/column from each sector.
-	This will work best after you subtract a background sky image.
+	"""
+	Destripe the detector by subtracting the median of each row/column from each sector. This works best after subtracting a background sky image.
 
-	legacy code from WIRC+Pol; updated by Shreyas"""
+	Originally implemented by the WIRC+Pol team; modified by Shreyas
+
+	Parameters
+	--------------------
+	image : array of floats
+			Array of pixel data corresponding to brightness values of the science images before the destripping
+	sigma : int, optional
+			Sigma floor to be clipped where outliers are removed from the sky background, by default 3
+	iters : int, optional
+			Number of iterations to remove the stripping artifacts from the detector, by default 5
+
+	Returns
+	--------------------
+	numpy.ndarray
+			Destripped science images where the stripping effects of the detector are removed.
+	"""
 
 	quads = []
 	clean_imm = np.array(image)
@@ -708,21 +843,22 @@ def destripe_image(image, sigma = 3, iters=5):
 	return clean_imm
 
 def nonlinearity_correction(image, header, nonlinearity_arr):
-	"""[summary]
+	"""
+	Correct the image whose pixel values have been skewed by a very bright target that over-saturates the detector
 
 	Parameters
 	--------------------
-	image : [type]
-			[description]
-	header : [type]
-			[description]
-	nonlinearity_arr : [type]
-			[description]
+	image : numpy.ndarray of floats
+			2D array of floats containing data of the .fits file
+	header : astropy.io.fits.header.Header
+			Header of the fits file, containing metadata of the image
+	nonlinearity_arr : array of float
+			2D numpy array contiaining coefficients for the quadratic nonlinearity correction
 
 	Returns
 	--------------------
-	[type]
-			[description]
+	numpy.ndarray
+			The corrected image data where nonlinearity have been adjusted
 	"""
 	assert np.shape(nonlinearity_arr) == np.shape(image)
 	n_coadd = header['COADDS']
@@ -733,12 +869,13 @@ def nonlinearity_correction(image, header, nonlinearity_arr):
 	return image_copy * n_coadd
 
 def construct_multicomponent_frame(calib_dir, dump_dir, rstepsize = 10):
-	"""Create multicomponent frame for removing the undesired ring-effect that appears in helium background images.
+	"""
+	Create multicomponent frame for removing the undesired arc-effect that appears in helium-background images.
 
 	Parameters
 	--------------------
 	calib_dir : string
-			Path to the directory in which the [*calibrated data*] will be stored
+			Path to the data directory
 	dump_dir : string
 			Path to directory in which the multicomponent framed background will be stored
 	rstepsize : int, optional
@@ -746,10 +883,10 @@ def construct_multicomponent_frame(calib_dir, dump_dir, rstepsize = 10):
 
 	Returns
 	--------------------
-	[type]
-			[description]
+	numpy.ndarray
+			distances of each pixel from the radial filter center
 	"""
-	home = (1037, 2120)
+	home = (1037, 2120)  # center of the circle/arc
 	mcf = np.zeros((2048, 2048))
 	dmax = 2400
 	print("Constructing multicomponent frame...")
@@ -763,7 +900,8 @@ def construct_multicomponent_frame(calib_dir, dump_dir, rstepsize = 10):
 	return mcf
 	
 def dist(p1, p2):
-	"""Calculate the distance bwteeen two point coordinates using the Pythagorean Theorem.
+	"""
+	Calculate the distance bwteeen two point coordinates using the Pythagorean Theorem.
 
 	Parameters
 	--------------------
@@ -777,5 +915,5 @@ def dist(p1, p2):
 	float
 			Distance between p1 and p2
 	"""
-	return np.sqrt((p2[1] - p1[1])**2 + (p2[0] - p1[0])**2)
+	return np.sqrt((p2[1] - p1[1]) ** 2 + (p2[0] - p1[0]) ** 2)
 

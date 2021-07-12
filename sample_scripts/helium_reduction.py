@@ -12,12 +12,12 @@ calibrate_data = True
 photometric_extraction = True
 fit_for_eclipse = True
 ######## calibration params ###############
-data_dir = '/Volumes/brassnose/20190816/'
-output_dir = '../../data_products/'
+data_dir = '/Volumes/External/20190816/'
+output_dir = '/Volumes/External/20190816_analysis/'
 test_name = 'WASP69_helium'
 nonlinearity_fname = None
 naming_style = 'wirc'
-science_seqs = [(73, 417)] 
+science_seqs = [(73, 75)] # 417
 dark_seqs = [(438, 457)]
 flat_seq = (6, 25)
 dark_for_flat_seq = (438, 457)
