@@ -13,11 +13,11 @@ from .io_utils import get_science_img_list, init_phot_dirs, load_calib_img, \
 
 def find_sources(image, fwhm = 20., sigma_threshold = 20.):
 	"""Using the photutils DAOStarFinder algorithm, automatically
-	identifies sources of a certain FWHM and a certain SNR.
+	identify sources of a certain FWHM and a certain SNR.
 
 	Parameters
 	------------
-	image : array_like, shape(2048, 2048)
+	image : numpyp.ndarray, shape(2048, 2048)
 			The finding frame in which the sources will be located
 	fwhm : float, optional
 			The approximate FWHM of all the sources to be detected
@@ -42,28 +42,24 @@ def accurate_cent(data, xc, yc, radius=3.0, max_iter=100, max_pos_error=1.e-2):
 	Parameters
 	------
 	data : array_like, shape(N, N)
-		The cutout on which the centroiding will be performed
+			The cutout on which the centroiding will be performed
 	xc : float
-		Initial guess at the x coordinate of the centroid
+			Initial guess at the x coordinate of the centroid
 	yc : float
-		Initial guess at the y coordinate of the centroid
+			Initial guess at the y coordinate of the centroid
 	radius : float, optional
-		Radius from the initial guess centroid that calculated
-		centroid is expected to reside.
+			Pixel radius from the initial guess centroid that the calculated centroid is expected to reside on the image
 	max_iter : int, optional
-		The max number of iterations of centroiding to perform before
-		returning. Note that the actual number of iterations is usually
-		less than this.
+			The max number of iterations of centroiding to perform (The actual number of iterations may be less)
 	max_pos_error : float, optional
-		The maximimum positional error allowed before returning the
-		calculated centroid.
+			The maximimum positional error allowed before returning the calculated centroid
 
 	Returns
 	-------
 	xc : float
-		x centroid
+			x centroid
 	yc : float
-		y centroid
+			y centroid
 	"""
 	data = np.array(data)
 	xs = np.array([np.arange(data.shape[1])] * data.shape[0])
@@ -90,125 +86,36 @@ def accurate_cent(data, xc, yc, radius=3.0, max_iter=100, max_pos_error=1.e-2):
 	print("couldn't converge on the source")
 	return old_xc, old_yc
 
-# def get_aperture_sum_sigmas(sources, image, sigmas = [2.], error = None,
-# 	ann_rads = (25, 50)):
-# 	"""[summary]
-
-# 	Parameters
-# 	----------
-# 	sources : [type]
-# 			[description]
-# 	image : [type]
-# 			[description]
-# 	sigmas : list, optional
-# 			[description], by default [2.]
-# 	error : [type], optional
-# 			[description], by default None
-# 	ann_rads : tuple, optional
-# 			[description], by default (25, 50)
-
-# 	Returns
-# 	-------
-# 	[type]
-# 			[description]
-# 	"""
-# 	sigmas = list(sigmas)
-# 	max_rad = max(sigmas)*4.
-
-
-# 	img_arrs = make_img_arrs(sources, 2 * max_rad, image)
-# 	xs = []
-# 	ys = []
-# 	widths = []
-	
-# 	#calculating centroids and widths for all sources
-# 	for i, arr in enumerate(img_arrs):
-# 		x_coord_ref = int(np.array(sources['xcentroid'])[i])
-# 		y_coord_ref = int(np.array(sources['ycentroid'])[i])
-# 		xval, yval = accurate_cent(arr, arr.shape[0]/2,
-# 			arr.shape[1]/2, max_rad)
-# 		x_centroid = x_coord_ref + xval - arr.shape[0]/2
-# 		y_centroid = y_coord_ref + yval - arr.shape[1]/2
-# 		width = fit_cut(arr, xval, yval)
-# 		xs.append(x_centroid)
-# 		ys.append(y_centroid)
-# 		widths.append(width)
-# 	xs = np.array(xs)
-# 	ys = np.array(ys)
-# 	widths = np.array(widths)
-# 	positions = [(x,y) for x, y in zip(xs, ys)]
-# 	apertures = [photutils.CircularAperture(positions, r = sigma*width) \
-# 		for sigma, width in zip(sigmas, widths)]
-# 	phot_table = photutils.aperture_photometry(image, apertures,
-# 		error = error)
-
-# 	#estimating local background using an annulus
-# 	ann = [photutils.CircularAnnulus(positions, r_in = ann_rads[0], 
-# 		r_out = ann_rads[1]) for rad in radii]
-# 	ann_masks = [annulus.to_mask() for annulus in ann]
-# 	local_bkgs = []
-# 	for masks in ann_masks:
-# 		local_bkgs_temp = []
-# 		for mask in masks:
-# 			mask_data = mask.multiply(image)[mask.data > 0]
-# 			flat_mask_data = mask_data.flatten()
-# 			clipped_data, low, up = sigmaclip(flat_mask_data,
-# 				low = 2.0, high = 2.0)
-# 			local_bkgs_temp.append(np.median(clipped_data))
-# 		local_bkgs_temp = np.array(local_bkgs_temp)
-# 		local_bkgs.append(local_bkgs_temp)
-	
-# 	#perform the aperture photometry	
-# 	ap_areas = np.array([aper.area for aper in apertures])
-# 	for i, aperture_area in enumerate(ap_areas):
-# 		if len(ap_areas) <= 1:
-# 			table_ind = 'aperture_sum'
-# 		else:
-# 			table_ind = 'aperture_sum_' + str(i)
-# 		extra_bkg_in_ap = aperture_area*local_bkgs[i]
-# 		phot_table[table_ind] = phot_table[table_ind] - extra_bkg_in_ap
-
-# 	return phot_table, np.array(xs), np.array(ys), np.array(widths)
-
-
-
 def get_aperture_sum(sources, image, radii = [10.], error = None,
 	ann_rads = (25, 50), target_ind = 0):
-	"""Given a list of sources, re-calculates image centroids via
-	flux-weighted centroiding and performs aperture photometry on all the
-	sources. All counts in the aperture are summed, and local background is
+	"""Given a list of sources, re-calculates image centroids via flux-weighted centroiding and performs aperture photometry on all the sources. All counts in the aperture are summed, and local background is
 	estimated using an annulus.
 
 	Parameters
 	------
 	sources : astropy.Table or dict
-		Table of source locations with x and y centroids
-	image : array_like, shape(2048, 2048)
-		The finding frame in which the sources will be located
-	radius : array_like, optional
-		Radii of the apertures for the photometry
-	error : None or array_like, shape(2048, 2048), optional
-		If None, errors will not be calculated during photometry. If
-		array_like, the errors will be used to produce error estimates
-		on the photometry.
+			Table of source locations with x and y centroids
+	image : numpy.ndarray, shape(2048, 2048)
+			The finding frame in which the sources will be located
+	radius : numpy.ndarray, optional
+			Radii of the apertures for the photometry
+	error : None or numpy.ndarray, shape(2048, 2048), optional
+			If None, errors will not be calculated during photometry. If numpy.ndarray, the errors will be used to produce error estimates on the photometry
 	ann_rads : tuple, optional
-			Tuple of form (float1, float2), where float1 specifies the inner
-		radius and float2 specifies the outer radius of the annulus
-		that will be used for local background subtraction
+			Tuple of form (float1, float2), where float1 specifies the inner radius and float2 specifies the outer radius of the annulus that will be used for local background subtraction
 	target_ind : int
-			Where the target is in the list of sources. Default to 0 because we already specified the loaction of the source coord, and function xxx moves the source with target coord to the top of file
+			Index location of the target in the list of sources. Default to 0 because index loaction of the source coordinate is conventionally marked at the 0th index, and function find_my_source() moves the source with target coordinate to the top of the list
 
 	Returns
 	-------
 	phot_table : astropy.Table
-		Table with aperture sums for each radius and
-		errors (if specified by input params)
-	xs : array_like
-		Array of x centroids of all the sources
-	ys : array_like
-		Array of y centroids of all the sources
-	widths : array_like
-		Array of widths for all the sources
+			Table with aperture sums for each radius and errors (if specified by input params)
+	xs : numpy.ndarrays
+			Array of x centroids of all the sources
+	ys : numpy.ndarrays
+			Array of y centroids of all the sources
+	widths : numpy.ndarrays
+			Array of widths for all the sources
 	"""
 	radii = list(radii)
 	max_rad = max(radii)
@@ -281,38 +188,40 @@ def get_aperture_sum(sources, image, radii = [10.], error = None,
 
 	return phot_table, np.array(xs), np.array(ys), np.array(widths)
 
+# *p destructure a list into a, b, and c
 def gauss(x, *p):
-	"""Support function for fit_cut()
+	"""Calculate the gaussian curve for the transit light curve. Support the scipy function curve_fit().
 
 	Parameters
 	----------
-	x : [type]
-			[description]
+	x : float
+			data point
 
 	Returns
 	-------
-	[type]
-			[description]
+	float
+			data point fitted to the gaussian curve used for the scipy function
 	"""
+	# unpack the first three args of p as a, b, and c
 	a, b, c = p
-	return a*np.exp(-(x - b)**2/(2*c**2))
+	return a*np.exp(-(x - b)**2 / (2 * c**2))
 
 def fit_cut(arr, xval, yval):
-	"""fitting gaussian profile to the star's psf (point-spread-function) and then cut the guassian profile to calculate the fwhm -> get_aperature_sum()
+	"""Fit a gaussian profile to the star's PSF and then cut the guassian profile to calculate the FWHM in function get_aperature_sum().
 
 	Parameters
 	----------
-	arr : [type]
-			a localized 2D numpy image array around the star from the make_image_array(). array of pixel brightness.
-	xval : [type]
-			x coord
-	yval : [type]
-			y coord
+	arr : numpy.ndarray
+			A localized 2D numpy image array of pixel brightness around the star. Support the function make_image_array()
+	xval : int
+			x-coordinate
+	yval : int
+			y coordinate
 
 	Returns
 	-------
-	[type]
-			[description]
+	numpy.ndarray
+			Array of the gaussian fitted data of star's PSF
 	"""
 	p0 = [1000, arr.shape[0]/2, 5]
 	popt, _ = curve_fit(gauss, np.arange(arr.shape[0]), arr[int(xval),:],
@@ -320,25 +229,22 @@ def fit_cut(arr, xval, yval):
 	return np.abs(popt[-1])
 
 def make_img_arrs(sources, rad, img):
-	"""Given a list of sources and the image, makes a list of smaller
-	cutouts centered on each source. The cutouts go from center - rad to
-	center + rad in both the x and y directions.
+	"""Given a list of sources and the image, make a list of smaller cutouts centered on each source. The cutouts go from (center - radius) to (center + rad) in both the x and the y directions.
 
 	Parameters
-	------
+	------------
 	sources : astropy.Table or dict
-		Table of source locations with x and y centroids
+			Table of source locations with x and y centroids
 	rad : int
-		Half the size of one side of the cutout (or, if you prefer,
-		the radius of the inscribed circle for the bounding box).
-		Needs to be an int for indexing purposes.
+			Half the size of one side of the cutout (or, if you prefer, the radius of the inscribed circle for the bounding box).
+			Needs to be an int for indexing purposes.
 	image : array_like, shape(2048, 2048)
-		The image from which the cutouts will be cut out
+			The image from which the cutouts will be cut out
 
 	Returns
-	-------
-	img_arrs : list of arrays of shape(2*rad, 2*rad)
-		Array of cutouts for all the sources
+	-------------
+	img_arrs : list of arrays, shape (2 * radius, 2 * radius)
+			Array of cutouts for all the sources
 	"""
 	xpositions = np.array(sources['xcentroid'])
 	ypositions = np.array(sources['ycentroid'])
@@ -354,28 +260,26 @@ def init_data(n_sources, n_images, radii):
 	"""Initializes all the data storage arrays and dictionaries.
 	
 	Parameters
-	------
+	------------
 	n_sources : int
-		Number of sources on which the photometry is being performed
+			Number of sources on which the photometry is being performed
 	n_images : int
-		Number of images to perform photometry on
-	radii : array_like
-		The radii of the apertures for photometry 
+			Number of images to perform photometry on
+	radii : numpy.ndarray
+			The radii of the apertures for photometry 
 
 	Returns
-	-------
-	xpos_arr : array_like, shape(n_sources, n_images)
-		Storage array for x centroid positions
-	ypos_arr : array_like, shape(n_sources, n_images)
-		Storage array for y centroid positions
-	psf_widths : array_like, shape(n_sources, n_images)
-		Storage array for the widths of the source PSFs
-	phot_dict : dict of array_like, shape(n_sources, n_images)
-		Dictionary mapping aperture radius to aperture sum for each
-		source and image number
-	err_dict : dict of array_like, shape(n_sources, n_images)
-		Dictionary mapping aperture radius to error on aperture sum
-		for each source and image number
+	------------
+	xpos_arr : numpy.ndarray, shape(n_sources, n_images)
+			Storage array for x centroid positions
+	ypos_arr : numpy.ndarray, shape(n_sources, n_images)
+			Storage array for y centroid positions
+	psf_widths : numpy.ndarray, shape(n_sources, n_images)
+			Storage array for the widths of the source PSFs
+	phot_dict : dict of numpy.ndarray, shape(n_sources, n_images)
+			Dictionary mapping aperture radius to aperture sum for each source and image number
+	err_dict : dict of numpy.ndarray, shape(n_sources, n_images)
+			Dictionary mapping aperture radius to error on aperture sum for each source and image number
 	"""
 	xpos_arr = np.zeros([n_sources, n_images])
 	ypos_arr = np.zeros([n_sources, n_images])
@@ -385,21 +289,19 @@ def init_data(n_sources, n_images, radii):
 	return xpos_arr, ypos_arr, psf_widths, phot_dict, err_dict
 
 def clean_sources(sources, fwhm, bad_channel = False):
-	"""Cleans (i.e. removes) all sources close to the edge of the detector,
-	as well as sources that overlap apertures.
+	"""Cleans (i.e. removes) all sources close to the edge of the detector as well as sources that overlap with the apertures.
 	
 	Parameters
 	------
 	sources : astropy.Table or dict
-		Table of source locations with x and y centroids
+			Table of source locations with x and y centroids
 	fwhm : float
-		Approximate FWHM of source PSFs. If sources are less than a
-		FWHM from a detector edge, they'll automatically be removed.
+			Approximate FWHM of source PSFs. If sources are less than a FWHM from a detector edge, they'll automatically be removed.
 
 	Returns
 	-------
 	sources : astropy.Table or dict
-		Cleaned Table of source locations with bad sources removed.
+			Cleaned Table of source locations with bad sources removed.
 	"""
 	#First clean sources that are close to the detector edge
 	xvals = np.array(sources['xcentroid']).astype(int)
@@ -439,27 +341,21 @@ def clean_sources(sources, fwhm, bad_channel = False):
 	return sources
 
 def find_my_source(sources, target_coords, tolerance = 20):
-	"""Given a list of sources and an initial guess for the coordinates
-	of the target, determines the index of the target source.
+	"""Given a list of sources and an initial guess for the coordinates of the target, determines the index of the target source.
 	
 	Parameters
 	------
 	sources : astropy.Table or dict
-		Table of source locations with x and y centroids
+			Table of source locations with x and y centroids
 	target_coords : tuple, shape:(2)
-		an (x, y) tuple describing approximately where the target is
-		located
+			An (x, y) tuple describing approximately where the target is located
 	tolerance : float, optional
-		The maximum distance away (in pixels) from the guess for a
-		source to be considered correctly identified. If it's small,
-		your guess better be really good. If it's big, be careful of
-		additional nearby sources.
+			The maximum distance away (in pixels) from the guess for a source to be considered correctly identified. If it's small, your guess better be really good. If it's big, be careful of additional nearby sources.
 
 	Returns
 	-------
 	index : int or None
-		If the source is found, this is the index of the source in the
-		sources dict. If not, None will be returned.
+			If the source is found, this is the index of the source in the sources dict. If not, None will be returned.
 	"""
 	x, y = target_coords
 	xs = np.array(sources['xcentroid'])
@@ -479,12 +375,7 @@ def perform_photometry(calib_dir, dump_dir, img_dir, science_ranges,
 	style = 'wirc', source_detection_sigma = 50, max_num_compars = 10,
 	gain = 1.2, bkg_fname = None, background_mode = None,
 	ann_rads = (20, 50), target_and_compars = None, bad_channel = False):
-	"""Given a list of science images, performs aperture photometry. First,
-	sources are automatically detected and cleaned. Then we run aperture
-	photometry with local background subtraction using a sigma-clipped
-	annulus. The aperture sums and errors for each radius, as well as
-	diagnostics like x centroid, y centroid, and PSF width, are pickled and
-	saved for fitting.
+	"""Given a list of science images, perform aperture photometry. First, sources are automatically detected and cleaned. Then run the aperture photometry with local background subtraction using a sigma-clipped annulus. The aperture sums and errors for each radius, as well as diagnostics like x centroid, y centroid, and PSF width, are pickled and saved for fitting.
 	
 	Parameters
 	------------
@@ -495,8 +386,7 @@ def perform_photometry(calib_dir, dump_dir, img_dir, science_ranges,
 	img_dir : string
 			Path to the directory holding all the diagnostic plots that	will be automatically generated.
 	science_ranges : list of tuples
-			list of (int1, int2) tuples, where each tuple defines a
-		single linear sequence of science images
+			List of (int1, int2) tuples, where each tuple defines a single linear sequence of science images
 	target_coords : tuple, shape:(2)
 			An (x, y) tuple describing approximately where the target is located
 	finding_fwhm : float, optional
@@ -504,39 +394,26 @@ def perform_photometry(calib_dir, dump_dir, img_dir, science_ranges,
 	extraction_rads : array_like, optional
 			A list of radii defining aperture sizes for the photometry
 	style : string, optional
-			the prefix for the image number. usually 'image' or 'wirc' unless otherwise specified during observations
+			The prefix for the image number. usually 'image' or 'wirc' unless otherwise specified during observations
 	source_detection_sigma : float, optional
-		The number of sigmas that a source needs to be to be detected
+			The number of sigmas that a source needs to be to be detected
 	max_num_compars : int, optional
-		The maximum number of comparison stars to use.
+			The maximum number of comparison stars to use.
 	gain : float, optional
-		The gain for the WIRC detector. Made it a free parameter but
-		it's unlikely to change anytime soon, so probably leave this
-		alone.
+			The gain for the WIRC detector. Made it a free parameter but it's unlikely to change anytime soon, so probably leave this alone.
 	bkg_frame : int, optional
-		The number of the background frame used for calibration, if
-		necessary. If background frame subtraction was performed during
-		calibration and you want accurate photometric errors, you
-		definitely should set this parameter.
+			The number of the background frame used for calibration, if necessary. If background frame subtraction was performed during calibration and you want accurate photometric errors, you definitely should set this parameter.
 	global_bkg_sub : boolean, optional
-		If you chose to subtract a background frame or a sigma-clipped
-		background from the science images during calibration, set this
-		flag to True so that you can calculate accurate photometric 
-		errors.
+			If you chose to subtract a background frame or a sigma-clipped background from the science images during calibration, set this flag to True so that you can calculate accurate photometric errors.
 	ann_rads : tuple, optional
-		Tuple of form (float1, float2), where float1 specifies the inner
-		radius and float2 specifies the outer radius of the annulus
-		that will be used for local background subtraction
+			Tuple of form (float1, float2), where float1 specifies the inner radius and float2 specifies the outer radius of the annulus that will be used for local background subtraction
 	target_and_compars : list of shape:(2) lists
-		A list of [x, y] coordinates for manually selected target
-		stars and comparison stars. Only select this if you don't want
-		automatic source detection. The target star is assumed to come
-		first in the list.
+			A list of [x, y] coordinates for manually selected target stars and comparison stars. Only select this if you don't want automatic source detection. The target star is assumed to come first in the list.
 
 	Returns
 	-------------
 	clean_fnames : list of Strings
-		A list of the paths to the pickled and saved photometry and error arrays as well as to the auxilliary arrays for the centroids and widths
+			A list of the paths to the pickled and saved photometry and error arrays as well as to the auxilliary arrays for the centroids and widths
 	"""
 	#initializing dirs and finding frame 
 	to_extract = get_science_img_list(science_ranges)  # full range of science images
@@ -630,21 +507,21 @@ def perform_photometry(calib_dir, dump_dir, img_dir, science_ranges,
 	return fnames
 
 def construct_bkg(background, scale_factors, multicomponent_frame):
-	"""deals with the helium data. create background frame
+	"""Create a background frame specifically for the helium data.
 
 	Parameters
 	-----------------
-	background : [type]
-			[description]
-	scale_factors : [type]
-			when taking background images, stack them on top of ea to get avg. Brightness changes from image to image. So we scale all images so that on average all images have same brightness. So if first img has 100 counts on avg, and second img has 150 counts.
-	multicomponent_frame : [type]
-			[description]
+	background : numpy.ndarray
+			A stack of the background night sky image data recording the value of the different sky background brightness at different time
+	scale_factors : numpy.ndarray
+			Each scale factor corresponds to a background image that is scaled to equate the average median brightness of the night sky
+	multicomponent_frame : numpy.ndarray  [*not sure*]
+			The aggregated image frame created from the background images as calibrated by the scale factors
 
 	Returns
 	--------------
-	[type]
-			[description]
+	numpy.ndarray
+			[*not sure*]
 	"""
 	new_bkg = np.zeros(background.shape)
 	for i in range(scale_factors.shape[0]):
@@ -659,37 +536,30 @@ def get_source_first(source_ind, xpos, ypos, widths, phot, errs):
 	Parameters
 	------
 	source_ind : int, optional	
-		Index of the target trace for all of the arrays.
+			Index of the target trace for all of the arrays.
 	xpos : array_like
-		Array containing all the x coordinates for the centroids of
-		every source
+			Array containing all the x coordinates for the centroids of every source
 	ypos : array_like
-		Array containing all the y coordinates for the centroids of
-		every source
+			Array containing all the y coordinates for the centroids of every source
 	widths : array_like
-		Array containing the widths for every source PSF
+			Array containing the widths for every source PSF
 	phot : array_like
-		Array containing the photometry for each of the sources
+			Array containing the photometry for each of the sources
 	errs : 	array_like
-		Array containing the raw errors for each of the sources
+			Array containing the raw errors for each of the sources
 
 	Returns
 	-------
 	xpos : array_like
-		Array containing all the x coordinates for the centroids of
-		every source with the target as index 0
+			Array containing all the x coordinates for the centroids of every source with the target as index 0
 	ypos : array_like
-		Array containing all the y coordinates for the centroids of
-		every source with the target as index 0
+			Array containing all the y coordinates for the centroids of every source with the target as index 0
 	widths : array_like
-		Array containing the widths for every source PSF with the
-		target as index 0
+			Array containing the widths for every source PSF with the target as index 0
 	phot : array_like
-		Array containing the photometry for each of the sources with
-		the target as index 0
+			Array containing the photometry for each of the sources with the target as index 0
 	errs : 	array_like
-		Array containing the raw errors for each of the sources with
-		the target as index 0
+			Array containing the raw errors for each of the sources with the target as index 0
 	"""
 	source_xpos = xpos[source_ind]
 	source_ypos = ypos[source_ind]
@@ -715,39 +585,30 @@ def reject_bad_trends(xpos, ypos, widths, phot, errs, max_num_compars = 10):
 	Parameters
 	------
 	xpos : array_like
-		Array containing all the x coordinates for the centroids of
-		every source
+			Array containing all the x coordinates for the centroids of	every source
 	ypos : array_like
-		Array containing all the y coordinates for the centroids of
-		every source
+			Array containing all the y coordinates for the centroids of every source
 	widths : array_like
-		Array containing the widths for every source PSF
+			Array containing the widths for every source PSF
 	phot : array_like
-		Array containing the photometry for each of the sources
+			Array containing the photometry for each of the sources
 	errs : 	array_like
-		Array containing the raw errors for each of the sources
+			Array containing the raw errors for each of the sources
 	max_num_compars : int, optional
-		The maximum number of comparison stars that you want to retain.
-		Note that in sparse fields, there may be fewer comparison
-		stars than this.
+			The maximum number of comparison stars that you want to retain. Note that in sparse fields, there may be fewer comparison stars than this.
 
 	Returns
 	-------
 	xpos : array_like
-		Array containing all the x coordinates for the centroids of
-		every source with only max_num_compars sources retained
+			Array containing all the x coordinates for the centroids of	every source with only max_num_compars sources retained
 	ypos : array_like
-		Array containing all the y coordinates for the centroids of
-		every source with only max_num_compars sources retained
+			Array containing all the y coordinates for the centroids of every source with only max_num_compars sources retained
 	widths : array_like
-		Array containing the widths for every source PSF with only
-		max_num_compars sources retained
+			Array containing the widths for every source PSF with only max_num_compars sources retained
 	phot : array_like
-		Array containing the photometry for each of the sources with
-		only max_num_compars sources retained
+			Array containing the photometry for each of the sources with only max_num_compars sources retained
 	errs : 	array_like
-		Array containing the raw errors for each of the sources with
-		only max_num_compars sources retained
+			Array containing the raw errors for each of the sources with only max_num_compars sources retained
 	"""
 	print("Rejecting bad trends...")
 	total_num_compars = len(phot) - 1

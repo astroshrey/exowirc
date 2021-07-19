@@ -10,6 +10,8 @@ Exowirc Documentation
    :maxdepth: 2
    :caption: Contents:
 
+   quickstart 
+   modules
 
 
 Indices and tables
