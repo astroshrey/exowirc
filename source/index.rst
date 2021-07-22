@@ -12,6 +12,7 @@ Exowirc Documentation
 
    quickstart 
    modules
+   installation
 
 
 Indices and tables
