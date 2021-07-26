@@ -3,7 +3,7 @@ Quickstart
 
 Exowirc v.1.0 is composed of five major calibration steps: remake_darks_and_flats, remake_bkg, calibrate_data, photometric_extraction, and fit_for_eclipse. 
 
-Before performing any cleaning, calibrating, and analyzing on the science images, first import all the necessary libraries:
+Import all the necessary libraries to start on the process of cleaning, calibrating, and analyzing science images for planetary transit!
 
 .. code-block:: Python
 
@@ -127,7 +127,6 @@ define fitting params for the pymc3 library:
   target_accept = 0.99   #basically step-size tuning, closer to 1 -> small steps
 
 
-
 In the main function of the code segment, initialize the output directories for storaging the output of the calibrations and analyses:
 
 .. code-block:: Python
@@ -141,20 +140,20 @@ Calibrate the sciecne images if the calibrate_data flag is turned on by passing 
 
 .. code-block:: Python
 
-	if calibrate_data:
-		with warnings.catch_warnings():
-			warnings.simplefilter("ignore")
-			cu.calibrate_all(
-        data_dir, 
-        calib_dir, 
-        dump_dir,
-				science_seqs, 
-        dark_seqs, 
-        dark_for_flat_seq,
-				flat_seq, 
-        style = naming_style, 
-				background_mode = background_mode,
-				remake_darks_and_flats = remake_darks_and_flats)
+  if calibrate_data:
+    with warnings.catch_warnings():
+      warnings.simplefilter("ignore")
+      cu.calibrate_all(
+          data_dir, 
+          calib_dir, 
+          dump_dir,
+          science_seqs, 
+          dark_seqs, 
+          dark_for_flat_seq,
+          flat_seq, 
+          style = naming_style, 
+          background_mode = background_mode,
+          remake_darks_and_flats = remake_darks_and_flats)
 
 After the science images are all calibrated with the backrgound noises removed, they are ready for photometric analysis. Perform photometry by calling the perform_photometry() function if the photometric_extraction flag is turned on, and pass in the three basic directories as well as the sciecne sequence images and an array of the estimated coordinates of the stars in the scinece sequence images:
 
@@ -183,16 +182,28 @@ Finally, fit_for_eclipse:
 
 .. code-block:: Python
 
-  	if fit_for_eclipse:
-		with warnings.catch_warnings():
-			
-			warnings.simplefilter("ignore")
-			best_ap = fu.quick_aperture_optimize(dump_dir, img_dir, 
-				extraction_rads)
-			fu.fit_lightcurve(dump_dir, img_dir, best_ap,
-				background_mode, covariate_names, texp,
-				r_star_prior, t0_prior, period_prior,
-				a_rs_prior, b_prior, jitter_prior,
-				phase = phase, ror_prior = ror_prior,
-				tune = tune, draws = draws, 
-				target_accept = target_accept)
+  if fit_for_eclipse:
+    with warnings.catch_warnings():
+      warnings.simplefilter("ignore")
+      best_ap = fu.quick_aperture_optimiz(
+        dump_dir, 
+        img_dir, 
+        extraction_rads)
+      fu.fit_lightcurve(
+        dump_dir, 
+        img_dir, 
+        best_ap,
+        background_mode, 
+        covariate_names, 
+        texp,
+        r_star_prior, 
+        t0_prior, 
+        period_prior,
+        a_rs_prior,
+        b_prior, 
+        jitter_prior,
+        phase = phase, 
+        ror_prior = ror_prior,
+        tune = tune, 
+        draws = draws, 
+        target_accept = target_accept)
