@@ -3,7 +3,7 @@ Quickstart
 
 Exowirc v.1.0 is composed of five major calibration steps: remake_darks_and_flats, remake_bkg, calibrate_data, photometric_extraction, and fit_for_eclipse. 
 
-Before performing any cleaning, calibrating, and analyzing on the science images, first import all the necessary libraries:
+Import all the necessary libraries before starting:
 
 .. code-block:: Python
 
