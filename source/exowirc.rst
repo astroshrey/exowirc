@@ -1,4 +1,4 @@
-Exowirc package
+exowirc package
 ===============
 
 Submodules
