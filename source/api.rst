@@ -1,8 +1,5 @@
-exowirc package
+API Package
 ===============
-
-Submodules
-----------
 
 exowirc.calib\_utils module
 ---------------------------
@@ -40,14 +37,6 @@ exowirc.plot\_utils module
 --------------------------
 
 .. automodule:: exowirc.plot_utils
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Module contents
----------------
-
-.. automodule:: exowirc
    :members:
    :undoc-members:
    :show-inheritance:

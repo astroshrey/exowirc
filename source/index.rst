@@ -9,10 +9,10 @@ Exowirc Documentation
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
-
-   quickstart 
+ 
    modules
    installation
+   tutorial
 
 
 Indices and tables

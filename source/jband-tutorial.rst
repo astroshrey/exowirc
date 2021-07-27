@@ -1,5 +1,5 @@
-Quickstart
-**********
+J-Band Tutorial
+***************
 
 Exowirc v.1.0 is composed of five major calibration steps: remake_darks_and_flats, remake_bkg, calibrate_data, photometric_extraction, and fit_for_eclipse. 
 

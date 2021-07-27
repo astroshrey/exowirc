@@ -1,7 +1,7 @@
-exowirc
+API
 =======
 
 .. toctree::
    :maxdepth: 4
 
-   exowirc
+   api
