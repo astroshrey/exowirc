@@ -1,6 +1,8 @@
 J-Band Tutorial
 ***************
 
+The following tutorial is designed for analyzing science images taken with the j-band filter. To analyze sceince images taken with the k-band filter and the helium filter, please navigate to the :doc:`kband-tutorial` and :doc:`helium-tutorial`: page respectively. 
+
 Exowirc v.1.0 is composed of five major calibration steps: remake_darks_and_flats, remake_bkg, calibrate_data, photometric_extraction, and fit_for_eclipse. 
 
 Import all the necessary libraries before starting:
