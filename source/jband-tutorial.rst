@@ -1,34 +1,23 @@
 J-Band Tutorial
 ***************
 
-The following tutorial is designed for analyzing science images taken with the j-band filter. To analyze sceince images taken with the k-band filter and the helium filter, please navigate to the :doc:`kband-tutorial` and :doc:`helium-tutorial`: page respectively. 
+The documentation below desceribes the steps to analyze images applied with a j-band filter. To analyze sceince images taken with the k-band filter and the helium filter, please navigate to the :doc:`kband-tutorial` and :doc:`helium-tutorial` page respectively. 
 
-Exowirc v.1.0 is composed of five major calibration steps: remake_darks_and_flats, remake_bkg, calibrate_data, photometric_extraction, and fit_for_eclipse. 
-
-Import all the necessary libraries before starting:
-
-.. code-block:: Python
-
-  import exowirc.calib_utils as cu
-  import exowirc.fit_utils as fu
-  import exowirc.photo_utils as pu
-  import exowirc.io_utils as iu
-  import numpy as np
-  import warnings
-
-The documentation below desceribes the steps to analyze the light curve of a j-band transit.
-
-In order to run a step, set the boolean flag in the python script to True.
+To begin utilizing all functions within the library, create five flags corresponding to the five core endpoints of the library:
 
 .. code-block:: Python
 
   remake_darks_and_flats = True
+  remake_bkg = True
+  calibrate_data = True
+  photometric_extraction = True
+  fit_for_eclipse = True
 
-Turn off any calibration step that you do not wish to run by setting the boolean flag to False.
+In order to run a step, the boolean flag in the python script must be set to True. To turn off any step that you do not wish to run, simply set the boolean flag to False.
 
 .. code-block:: Python
 
-  fit_for_eclipse = False
+  remake_bkg = False
 
 Specify the full paths to the raw image data as well as the output directory. Also, give a prefix for the output test files and specify a naming style. For example:
 
@@ -47,7 +36,7 @@ If the data is provided with a file for correcting nonlinearity in the target's 
 
   nonlinearity_fname = None
 
-Indicate the starting and ending indices of the science images and dark sequences to be analyzed. For example:
+Indicate the starting and ending indices of the science images and dark sequences to be analyzed:
 
 .. code-block:: Python
 
@@ -56,7 +45,7 @@ Indicate the starting and ending indices of the science images and dark sequence
 
 The range may be narrowed when running tests. If more than one range is analyzable, simply include the tuple in the array.
 
-Similarly, include the starting and ending indices for the flat image sequences as well as for the dark for flat sequences.
+Similarly, include the starting and ending indices for the flat image sequences as well as for the dark for flat sequences:
 
 .. code-block:: Python
 
@@ -65,9 +54,14 @@ Similarly, include the starting and ending indices for the flat image sequences 
 
 Depending on the analysis, indicate the background mode. The available modes include 'median', 'global', and 'helium':
 
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
 .. code-block:: Python
 
   background_mode = 'median'
+
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
 
 Provide the estimated pixel coordinate of the target source in the science image:
 
@@ -97,7 +91,7 @@ A target or calibrator star source will have a much higher pixel brightness valu
 
 .. code-block:: Python
 
-  source_detection_sigma = 50.
+  source_detection_sigma = 100.
 
 Set a maximum number of comparison stars to use in the photometry process. If the max_num_compars is not specified, it is defaulted to 10. However, note that the number is often scarcer than 10 in sparse fields.
 
@@ -105,8 +99,10 @@ Set a maximum number of comparison stars to use in the photometry process. If th
 
   max_num_compars = 5
 
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-define planet params for the transit shape:
+Define planet params for the transit shape:
 
 .. code-block:: Python
 
@@ -120,7 +116,7 @@ define planet params for the transit shape:
   ror_prior = ('uniform', 0., 0.15)
   jitter_prior = ('uniform', 1e-6, 1e-2)
 
-define fitting params for the pymc3 library:
+Define fitting params for the pymc3 library:
 
 .. code-block:: Python
 
@@ -128,7 +124,8 @@ define fitting params for the pymc3 library:
   draws = 1500           #number of steps per chain
   target_accept = 0.99   #basically step-size tuning, closer to 1 -> small steps
 
-
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 In the main function of the code segment, initialize the output directories for storaging the output of the calibrations and analyses:
 

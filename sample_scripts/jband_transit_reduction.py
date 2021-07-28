@@ -6,7 +6,7 @@ import numpy as np
 import warnings
 
 ######## pipeline steps #################################
-remake_darks_and_flats = True # true-> call
+remake_darks_and_flats = True
 remake_bkg = True
 calibrate_data = True
 photometric_extraction = False
@@ -17,9 +17,9 @@ output_dir = '/Volumes/External/exowirc_data/Output/'
 test_name = 'test1'
 nonlinearity_fname = None
 naming_style = 'image'
-science_seqs = [(65, 66)]   # 65-458, but could set for smaller range for testing calibration function
+science_seqs = [(65, 66)]
 dark_seqs = [(458, 477)]
-flat_seq = (22, 41) # img range
+flat_seq = (22, 41)
 dark_for_flat_seq = (2, 21)
 background_mode = 'median'
 covariate_names = []
@@ -74,6 +74,7 @@ if __name__ == '__main__':
 				ann_rads = ann_rads,
 				source_detection_sigma = source_detection_sigma,
 				max_num_compars = max_num_compars)	
+
 	if fit_for_eclipse:
 		with warnings.catch_warnings():
 			
