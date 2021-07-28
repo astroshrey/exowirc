@@ -55,22 +55,34 @@ Specifically for images with background mode set to global, include the backgrou
 
   bkg_seq = (285, 289)
 
-Indicate the path to the file containing the array of coordinates and their corresponding nonlinearity coefficients for calibrating pixels with oversaturated brightness.
+Optionally indicate the path to the file containing the array of pixel coordinates and their corresponding nonlinearity coefficients if the image pixels have oversaturated brightness:
 
->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-nonlinearity_fname is not used anywhere in the three sample files. Can you show me a use case, where the field is not None? 
+.. code-block:: Python
+  
+  nonlinearity_fname 
 
->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+A working file of nonlinearity data used by the Knutson Group is downloadable in the below link:
 
-Covariates are quantified invariances used for noise correction. What does enumerating the covariates good for?
+[insert downloadable file for the nonlinearity correction array]
 
-covariate_names = ['d_from_med', 'airmass', 'background']
+Covariates are quantified invariances used for noise correction. Add the covariates whose metadata you would like to examine in the covariate_names list. For example:
 
->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+.. code-block:: Python
 
-Is the background mode 'median', 'global' dependent upon the type of sample file it is running, like only jband can have 'median' background mode, and only kband can have 'global' background mode?
+  covariate_names = ['d_from_med', 'airmass', 'background']
 
->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+A full list of covariates that may be selected include:
+
+  |   'd_from_med',
+  |   ‘airmass',
+  |   'background',
+  |   'psf_width',
+  |   'x_cent',
+  |   'y_cent',
+  |   'd_from_med’,
+  |   ‘water_proxy’
+  
+For images taken with the helium filter, ‘water_proxy’ is a commonlty tracked covariate for each image file.
 
 Provide the estimated pixel coordinate of the target source in the science image:
 
@@ -90,32 +102,168 @@ Optionally, provide a list of aperature radii sizes. If a list for extraction_ra
 
   extraction_rads = range(10, 25)
 
-A tuple of the inner and outer pixel radii of the annulus surrounding the target star may also optionally be specified for performing the local background subtraction. If there is no specification of ann_rads, the default radii values of the tuple is (20, 50).
+A tuple of the inner and outer pixel radii of the annulus ring that surrounds the target star may  optionally be specified for performing the local background subtraction. If there is no specification of ann_rads, then the default radii values of the tuple is (20, 50).
 
 .. code-block:: Python
 
   ann_rads = (25, 50)
 
-A target or calibrator star source will have a much higher pixel brightness value compared to the pixel brightness values of other non-source stars. Optionally set a sigma threshhold for detecting the source stars. The default source_detection_sigma value is 50.
+A source or target star will have a much higher pixel brightness value compared to the pixel brightness values of other non-source stars. 
 
->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+Optionally, estimate a sigma threshhold for detecting the source stars. The default source_detection_sigma value is 50. 
 
 .. code-block:: Python
 
   source_detection_sigma = 600.
 
-Why is the source detection sigma a lot higher? (600 vs 100) Is the global filter a lot brighter than the median filter?
+The source_detection_sigma value may be readjusted after running the photometric analysis. To determine whether to lower or to raise the source_detection_sigma value, navigate to the output dump directory and search for image file source_plot.png generated from the photometry step.
 
->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+If the source_detection.png circuled too many source stars, then lower the sigma value, and if the image circled too little source stars, raise the sigma value. Keep the number of comparison starts circled in the image to be around 10.
 
 Set a maximum number of comparison stars to use in the photometry process. If the max_num_compars is not specified, it is defaulted to 10. However, note that the number is often scarcer than 10 in sparse fields.
 
 .. code-block:: Python
 
-  max_num_compars = 10
+  max_num_compars = 12
 
 >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
+Define planet params for the transit shape:
 
+.. code-block:: Python
+
+  phase = 'secondary'
+  texp = 15*0.92/60/1440.
+  r_star_prior = ('normal', 1.7, 0.07)
+  period_prior = ('normal', 0.6724613, 0.0000019)
+  t0_prior = ('normal', 2458997.16653, 0.00016)
+  a_rs_prior = ('normal', 3.148, 0.034)
+  b_prior = ('normal', 0.137, 0.029)
+  ldc_val = [0., 0.]
+  fpfs_prior = ('uniform', 0., 0.05)
+  jitter_prior = ('uniform', 1e-6, 1e-2)
+
+Define fitting params for the pymc3 library:
+
+.. code-block:: Python
+
+  tune = 1000
+  draws = 1500
+  target_accept = 0.99 
+
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+Now begins the code segment of the sample k-band script:
+
+.. code-block:: Python
+
+  if __name__ == '__main__':
+
+First, initialize the output directories for storaging the output of the calibrations and analyses:
+
+.. code-block:: Python
+
+  calib_dir, dump_dir, img_dir = 
+    iu.init_output_direcs(output_dir, test_name)
+
+The calib_dir stores the calibrated image data that are later used for photometric analysis. The dump_dir stores the side-effect information about the images that were generated by running the functions, which may later be used in the photomtric analysis or fitting later on. The img_dir stores the graph and image outputs that are useful for science.
+
+A k-band filter script usually has either the 'median' background mode or the 'global' background mode. If the 'global' background mode is set and the images to the 'global' background files are provided, then run the calibration step for constructing a global background image:
+
+.. code-block:: Python
+
+  with warnings.catch_warnings():
+      warnings.simplefilter("ignore")
+      bkg = cu.make_calibrated_bkg_image(
+        data_dir, 
+        calib_dir,	
+        bkg_seq,
+        dark_seqs, 
+        dark_for_flat_seq, 
+        flat_seq,
+        naming_style = naming_style,
+        nonlinearity_fname = nonlinearity_fname,
+        sigma_lower = bkg_sigma_lower, 
+        sigma_upper = bkg_sigma_upper, 
+        remake_darks_and_flats = remake_darks_and_flats,
+        remake_bkg = remake_bkg)
+
+Note that scripts set to 'median' background mode do not need the above calibration step.
+
+Calibrate the sciecne images if the calibrate_data flag is turned on by passing in the science sequence images, the dark images, the flat images, and the dark for flat images into the calibrate_all() function along with the three directories and other optional parameters:
+
+.. code-block:: Python
+
+    if calibrate_data:
+      with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        cu.calibrate_all(
+          data_dir, 
+          calib_dir, 
+          dump_dir,
+          science_seqs, 
+          dark_seqs, 
+          dark_for_flat_seq,
+          flat_seq, 
+          style = naming_style, 
+          background_mode = background_mode,
+          remake_darks_and_flats = remake_darks_and_flats)
+
+After the science images are all calibrated, with the backrgound noises removed, they are ready for photometric analysis. Perform photometry by calling the perform_photometry() function if the photometric_extraction flag is turned on, and pass in the three basic directories as well as the sciecne sequence images and an array of the estimated coordinates of the stars in the scinece sequence images:
+  
+.. code-block:: Python
+
+  if photometric_extraction:
+      with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        pu.perform_photometry(
+          calib_dir, 
+          dump_dir, 
+          img_dir,
+          science_seqs, 
+          source_coords,
+          style = naming_style,
+          finding_fwhm = finding_fwhm, 
+          extraction_rads = extraction_rads,
+          background_mode = background_mode,
+          ann_rads = ann_rads,
+          source_detection_sigma = source_detection_sigma,
+          max_num_compars = max_num_compars,
+          bkg_fname = bkg)
+
+As in the calibration step, some parameters in the photometry steop have default values provided for them, which could be adjusted by users if better suited or more precise values are known. Science seiries with 'median' background mode do not to provide have a bkg_fname field in perform_photometry().
+
+Finally, fit_for_eclipse:
+
+.. code-block:: Python
+
+    if fit_for_eclipse:
+      with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+          best_ap = fu.quick_aperture_optimize(
+            dump_dir,
+            img_dir,
+            extraction_rads,
+            flux_cutoff = 0.9)
+          fu.fit_lightcurve(
+            dump_dir,
+            img_dir,
+            best_ap,
+            background_mode,
+            covariate_names,
+            texp,
+            r_star_prior,
+            t0_prior,
+            period_prior,
+            a_rs_prior,
+            b_prior,
+            jitter_prior,
+            phase = phase,
+            ldc_val = ldc_val,
+            fpfs_prior = fpfs_prior,
+            tune = tune,
+            draws = draws, 
+            target_accept = target_accept,
+            flux_cutoff = 0.9)
 
 
