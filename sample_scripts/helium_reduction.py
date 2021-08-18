@@ -6,22 +6,22 @@ import numpy as np
 import warnings
 
 ######## pipeline steps #################################
-remake_darks_and_flats = True
-remake_bkg = True
-calibrate_data = True
-photometric_extraction = True
+remake_darks_and_flats = False
+remake_bkg = False
+calibrate_data = False
+photometric_extraction = False
 fit_for_eclipse = True
 ######## calibration params ###############
-data_dir = '/Volumes/External/20190816/'
-output_dir = '/Volumes/External/20190816_analysis/'
-test_name = 'WASP69_helium'
-nonlinearity_fname = None
+data_dir = '/Volumes/External/exowirc_data/WASP69_Helium/' # 20190816
+output_dir = '/Volumes/External/exowirc_data/WASP69_Helium_Output/'
+test_name = 'WASP69_Helium'
 naming_style = 'wirc'
-science_seqs = [(73, 75)] # 417
+science_seqs = [(73, 417)]  #
 dark_seqs = [(438, 457)]
 flat_seq = (6, 25)
 dark_for_flat_seq = (438, 457)
 bkg_seq = (68, 71)
+nonlinearity_fname = None
 bkg_sigma_lower = 5
 bkg_sigma_upper = 1000
 background_mode = 'helium'
