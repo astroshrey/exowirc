@@ -12,8 +12,8 @@ calibrate_data = True
 photometric_extraction = True
 fit_for_eclipse = True
 ######## calibration params ###############
-data_dir = '/Volumes/brassnose/20210306/'
-output_dir = '../../data_products/'
+data_dir = '/Volumes/External/exowirc_data/TOI2109_Ks/' # 20210306
+output_dir = '/Volumes/External/exowirc_data/TOI2109_Ks_Output/'
 test_name = 'TOI2109_Ks'
 nonlinearity_fname = None
 naming_style = 'image'

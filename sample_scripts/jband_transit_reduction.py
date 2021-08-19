@@ -6,17 +6,18 @@ import numpy as np
 import warnings
 
 ######## pipeline steps #################################
-remake_darks_and_flats = True 
+remake_darks_and_flats = False
+remake_bkg = False
 calibrate_data = True
-photometric_extraction = True
-fit_for_eclipse = True
+photometric_extraction = False
+fit_for_eclipse = False
 ######## calibration params ###############
-data_dir = '/Volumes/brassnose/20190824/'
-output_dir = '../../data_products/'
-test_name = 'Kepler289_J'
+data_dir = '/Volumes/External/exowirc_data/Kepler289/'
+output_dir = '/Volumes/External/exowirc_data/Output/'
+test_name = 'kepler289'
 nonlinearity_fname = None
 naming_style = 'image'
-science_seqs = [(65, 456)] 
+science_seqs = [(65, 66)]
 dark_seqs = [(458, 477)]
 flat_seq = (22, 41)
 dark_for_flat_seq = (2, 21)
@@ -46,9 +47,11 @@ target_accept = 0.99   #basically step-size tuning, closer to 1 -> small steps
 ######### reducing the data ############################
 
 if __name__ == '__main__':
-	calib_dir, dump_dir, img_dir = iu.init_output_direcs(output_dir,
-		test_name)	
+  # destructre function call from init_output_direcs, pass in output_dir and
+  # test_name. create 3 folders in the path: calib_dir, dump_dir, img_dir
+	calib_dir, dump_dir, img_dir = iu.init_output_direcs(output_dir, test_name)
 
+  # if calibrate_data flag is turned on, call calibrate_all
 	if calibrate_data:
 		with warnings.catch_warnings():
 			warnings.simplefilter("ignore")
