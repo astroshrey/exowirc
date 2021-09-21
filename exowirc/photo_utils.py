@@ -179,7 +179,7 @@ def get_aperture_sum(sources, image, radii = [10.], error = None,
 		local_bkgs_temp = np.array(local_bkgs_temp)
 		local_bkgs.append(local_bkgs_temp)
 	
-	#perform the aperture photometry	- removing background from target aperature - and calculate the final flux value and add it to the photometry table
+	#perform the aperture photometry
 	ap_areas = np.array([aper.area for aper in apertures])
 	for i, aperture_area in enumerate(ap_areas):
 		table_ind = 'aperture_sum_' + str(i)
@@ -188,7 +188,6 @@ def get_aperture_sum(sources, image, radii = [10.], error = None,
 
 	return phot_table, np.array(xs), np.array(ys), np.array(widths)
 
-# *p destructure a list into a, b, and c
 def gauss(x, *p):
 	"""Calculate a gaussian curve. Supports the scipy function curve_fit().
 
@@ -202,7 +201,6 @@ def gauss(x, *p):
 	float
 			y data point fitted to the gaussian curve described by parameters *p
 	"""
-	# unpack the first three args of p as a, b, and c
 	a, b, c = p
 	return a*np.exp(-(x - b)**2 / (2 * c**2))
 
@@ -416,29 +414,27 @@ def perform_photometry(calib_dir, dump_dir, img_dir, science_ranges,
 			A list of the paths to the pickled and saved photometry and error arrays as well as to the auxilliary arrays for the centroids and widths
 	"""
 	#initializing dirs and finding frame 
-	to_extract = get_science_img_list(science_ranges)  # full range of science images
+	to_extract = get_science_img_list(science_ranges) 
 	n_images = len(to_extract)
-	dump_dir_phot = init_phot_dirs(dump_dir, img_dir, extraction_rads)  # init_phot_dirs() create photometry folder
-	finding_frame = load_calib_img(calib_dir, to_extract[0], style = style)  # load_calib_img() extract the first calibrated science img of the night, which is the finding_frame that identifies where the star and comparison stars are
-	print(to_extract)  # range of science images to do photometry on
+	dump_dir_phot = init_phot_dirs(dump_dir, img_dir, extraction_rads)
+	finding_frame = load_calib_img(calib_dir, to_extract[0], style = style)
 
 	#getting list of sources
-	print(ann_rads)
-	max_lengthscale = ann_rads[1]  # don't go past 50 (ann_rads: [20, 50])
-	if target_and_compars is None:  # target_and_compars: list of lists of xy pixel coord of every compars in the image
-		sources = find_sources(finding_frame, fwhm = finding_fwhm, sigma_threshold = source_detection_sigma)  # find them
+	max_lengthscale = ann_rads[1]
+	if target_and_compars is None:  
+		sources = find_sources(finding_frame, fwhm = finding_fwhm, sigma_threshold = source_detection_sigma) 
 		if sources is None:
-			print("NO SOURCES FOUND!!") ## 
+			print("NO SOURCES FOUND!!") 
 		source_ind_temp = find_my_source(sources, target_coords)
 		sources = clean_sources(sources, max_lengthscale, bad_channel = bad_channel)
 		source_ind = find_my_source(sources, target_coords)
-		plot_sources(img_dir, finding_frame, sources, finding_fwhm, ann_rads)  # create an img of the annulus drawn on the stars
+		plot_sources(img_dir, finding_frame, sources, finding_fwhm, ann_rads)
 		n_sources = len(sources)
-	else:  # in the case target_and_compars is manually defined, create a table of the sources
-		x_stars = np.array([tup[0] for tup in target_and_compars])  # x_stars: x pixel value
-		y_stars = np.array([tup[1] for tup in target_and_compars])  # 
-		sources = {'xcentroid': x_stars, 'ycentroid': y_stars}  # sources table: used for photometry, contains location of all the stars
-		source_ind = 0  # target star is index 0 of the list
+	else:
+		x_stars = np.array([tup[0] for tup in target_and_compars])
+		y_stars = np.array([tup[1] for tup in target_and_compars])
+		sources = {'xcentroid': x_stars, 'ycentroid': y_stars}
+		source_ind = 0
 		n_sources = len(x_stars)
 
 	#initializing data storage arrays
@@ -448,7 +444,7 @@ def perform_photometry(calib_dir, dump_dir, img_dir, science_ranges,
 		bkg_arr = np.ones(np.shape(finding_frame))
 		if bkg_fname is not None:	
 			with fits.open(bkg_fname) as hdul:
-				bkg_frame = hdul[0].data  # put image data into bkg_frame
+				bkg_frame = hdul[0].data 
 
 	if background_mode is not None:
 		bkgs = np.array(load_bkgs(dump_dir))
@@ -460,13 +456,13 @@ def perform_photometry(calib_dir, dump_dir, img_dir, science_ranges,
 		if background_mode == 'helium':
 			mcf = load_multicomponent_frame(dump_dir)
 			bkg_error_array = construct_bkg(bkg_arr, bkgs[i], mcf)
-			bkg_error_array = np.sqrt(bkg_error_array/gain)  ## gain: prop of detector sensitivity for num of photoelectrons to make 1 count (Analog to Digital Unit ADU: 1 ADU per 1.2e-). photoelectric effect
-			error = calc_total_error(image, bkg_error_array, gain)  # error in the sky background--std of the total img
+			bkg_error_array = np.sqrt(bkg_error_array/gain) 
+			error = calc_total_error(image, bkg_error_array, gain)
 		elif background_mode == 'global' or background_mode == 'median':
 			#error is sqrt(N)
 			if background_mode == 'global':
 				bkg_arr = np.sqrt(bkg_arr)
-			else:  # background = 'median', for case where we don't have a background file
+			else:
 				bkg_arr = np.ones((2048, 2048))
 			bkg_errors = np.sqrt(bkgs / gain)
 			bkg_error_array = bkg_arr * bkg_errors[i]
@@ -474,19 +470,18 @@ def perform_photometry(calib_dir, dump_dir, img_dir, science_ranges,
 		else:
 			error = np.sqrt(image / gain)
 
-		phot_table, xs, ys, widths = get_aperture_sum(sources, image, radii = extraction_rads, error = error, ann_rads = ann_rads, target_ind = source_ind)  # !!! get brightness, position, widths of the target and compars stars
+		phot_table, xs, ys, widths = get_aperture_sum(sources, image, radii = extraction_rads, error = error, ann_rads = ann_rads, target_ind = source_ind)
 
-		xpos[:,i] = xs  ## xpos is a 2D list. Fill all the rows, for col correspond to science image i, fill exposition with that star. xs is a 1D list
+		xpos[:,i] = xs
 		ypos[:,i] = ys
-		psf_widths[:,i] = widths ## "seeing"--clouds diffuse light, etc
-		## for ea sci img record brightness of star, which depends on the aperature size. measure ea sci img for each aperture radius size.
+		psf_widths[:,i] = widths
 		for j, rad in enumerate(extraction_rads):
 			table_ind = 'aperture_sum_' + str(j)
 			table_err_ind = 'aperture_sum_err_' + str(j)
 			phot_dict[rad][:,i] = phot_table[table_ind]
 			err_dict[rad][:,i] = phot_table[table_err_ind]
 
-	#saving files for each extraction radius seperately - pickling to efficiently store data (compression? zip?)
+	#saving files for each extraction radius seperately
 	for i, rad in enumerate(extraction_rads):
 		raw_phot = phot_dict[rad]
 		errs = err_dict[rad]
