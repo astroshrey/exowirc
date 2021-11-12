@@ -137,7 +137,7 @@ def trace_plot(plot_dir, data, varnames):
 
 def tripleplot(plot_dir, dump_dir, x, ys, yerrs, compars, detrended_data,
 	new_map, trace, texp, phase = 'primary', bin_time = 5, gp = False,
-	baseline_off = False):
+	baseline_off = False, plot_nominal = False):
 	#bin_time in mins
 
 	matplotlib.rcParams['mathtext.fontset'] = 'cm'
@@ -190,6 +190,17 @@ def tripleplot(plot_dir, dump_dir, x, ys, yerrs, compars, detrended_data,
 	upper = np.percentile(lcsamps, 84, axis = 1)
 	ax[0].fill_between(x_fold, lower, upper,
 		alpha = 0.3, facecolor = f'r', lw = 1)
+
+	if plot_nominal == True:
+		lc_nominal = np.array(new_map[f'light_curve_nominal'])
+		ax[0].plot(x_fold, lc_nominal, f'b-', zorder = 5, lw = 2)
+		#68 percentile on the confidence interval
+		#stacked = trace.posterior.stack(draws=("chain", "draw"))
+		#lcsamps = stacked.light_curve_nominal.values
+		#lower = np.percentile(lcsamps, 16, axis = 1)
+		#upper = np.percentile(lcsamps, 84, axis = 1)
+		#ax[0].fill_between(x_fold, lower, upper,
+		#	alpha = 0.3, facecolor = f'b', lw = 1)
 
 	#rms vs binsize
 	tsep = np.median(np.ediff1d(x))

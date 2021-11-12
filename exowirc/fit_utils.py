@@ -3,6 +3,7 @@ import exoplanet as xo
 import pymc3 as pm
 import pymc3_ext as pmx
 import arviz as az
+import theano.tensor as tt
 import decimal
 
 from scipy.signal import medfilt
@@ -273,7 +274,7 @@ def fit_lightcurve(dump_dir, plot_dir, best_ap, background_mode,
     ldc_val = None, bin_time = 5., 
     flux_cutoff = 0., end_num = 0, filter_width = 31,
     sigma_cut = 5, gp = False, sigma_prior = None, rho_prior = None,
-    baseline_off = False):
+    baseline_off = False, ror_nominal = None):
     """
     The main function used to fit the target light curve and find the best-fit transit model parameters.
 
@@ -362,7 +363,6 @@ def fit_lightcurve(dump_dir, plot_dir, best_ap, background_mode,
     weight_guess = np.array([1./compars.shape[0]]*compars.shape[0] + \
         [0]*len(covs)) 
     compars = np.vstack((compars, *covs))
-    
     print("Constructing model...")
 
     ##model in pymc3
@@ -370,7 +370,7 @@ def fit_lightcurve(dump_dir, plot_dir, best_ap, background_mode,
         texp, r_star_prior, t0_prior, period_prior,
         a_rs_prior, b_prior, jitter_prior, phase, ror_prior,
         fpfs_prior, ldc_val, gp, sigma_prior, rho_prior,
-        baseline_off)
+        baseline_off, ror_nominal)
     plot_initial_map(plot_dir, x, ys, yerrs, compars, map_soln, gp,
         baseline_off)
     print("Initial MAP found!")
@@ -383,7 +383,7 @@ def fit_lightcurve(dump_dir, plot_dir, best_ap, background_mode,
             weight_guess, texp, r_star_prior, t0_prior, 
             period_prior, a_rs_prior, b_prior, jitter_prior, 
             phase, ror_prior, fpfs_prior, ldc_val, gp,
-            sigma_prior, rho_prior, baseline_off)
+            sigma_prior, rho_prior, baseline_off, ror_nominal)
         plot_initial_map(plot_dir, x, ys, yerrs, compars, map_soln, gp,
             baseline_off)
         print("MAP found!")
@@ -404,9 +404,13 @@ def fit_lightcurve(dump_dir, plot_dir, best_ap, background_mode,
         baseline = np.poly1d(np.array(new_map[f'baseline']))(vec)
     detrended_data = (ys[0] - baseline)/systematics
     true_err = np.sqrt(yerrs[0]**2 + float(new_map[f"jitter"])**2)    
+    if ror_nominal is not None:
+        plot_nominal = True
+    else:
+        plot_nominal = False
 
     summary, varnames = gen_summary(dump_dir, trace, phase, ldc_val, gp,
-        baseline_off)
+        baseline_off, plot_nominal)
     gen_latex_table(dump_dir, summary)
     gen_lightcurve_table(dump_dir, x, detrended_data, true_err)
 
@@ -417,12 +421,12 @@ def fit_lightcurve(dump_dir, plot_dir, best_ap, background_mode,
     tripleplot(plot_dir, dump_dir, x, ys, yerrs, compars, detrended_data,
         new_map, trace, texp, bin_time = bin_time,
         phase = phase, gp = gp, 
-        baseline_off = baseline_off)
+        baseline_off = baseline_off, plot_nominal = plot_nominal)
     print("Fitting complete!")
     return None    
 
 def gen_summary(dump_dir, trace, phase, ldc_val, gp = False,
-    baseline_off = False):
+    baseline_off = False, plot_nominal = False):
     """
     Generates a csv table with summary information for all the parameters of the fit.
 
@@ -461,6 +465,8 @@ def gen_summary(dump_dir, trace, phase, ldc_val, gp = False,
         varnames += ['sigma', 'rho']
     elif baseline_off == False:
         varnames += ['baseline']
+    if plot_nominal:
+        varnames += ['mid_transit_excess_depth']
 
     func_dict = {
         "16%": lambda x: np.percentile(x, 16),
@@ -629,7 +635,8 @@ def make_model(x, ys, yerrs, compars, weight_guess, texp, r_star_prior,
     t0_prior, period_prior, a_rs_prior, b_prior,
     jitter_prior, phase = 'primary', ror_prior = None, fpfs_prior = None,
     ldc_val = None, gp = False,
-    sigma_prior = None, rho_prior = None, baseline_off = False):
+    sigma_prior = None, rho_prior = None, baseline_off = False,
+    ror_nominal = None):
     """
     Generates the light curve model with exoplanet.
 
@@ -716,6 +723,13 @@ def make_model(x, ys, yerrs, compars, weight_guess, texp, r_star_prior,
             star.get_light_curve(orbit=orbit, r = ror*r_star,
             t = x, texp = texp), axis = -1) + 1.)
 
+        if ror_nominal is not None:
+            nominal_lightcurve = pm.Deterministic("light_curve_nominal",
+                pm.math.sum(star.get_light_curve(orbit = orbit, 
+                r = ror_nominal*r_star, t = x, texp = texp), axis = -1) + 1)
+            mid_transit = pm.Deterministic("mid_transit_excess_depth", 
+                -(tt.min(lightcurve) - tt.min(nominal_lightcurve)))
+
         #systematics
         comp_weights = pm.Uniform("weights", -2., 2.,
             testval = weight_guess, shape = len(weight_guess))
@@ -751,7 +765,6 @@ def make_model(x, ys, yerrs, compars, weight_guess, texp, r_star_prior,
             pm.Deterministic("full_model", full_model)
             pm.Normal(f"obs", mu=full_model,
                 sd=np.sqrt(full_variance), observed=ys[0])
-
         map_soln = model.test_point
         map_soln = pmx.optimize(map_soln)
 
