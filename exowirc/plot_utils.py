@@ -135,8 +135,8 @@ def trace_plot(plot_dir, data, varnames):
 	plt.close()
 	return None
 
-def tripleplot(plot_dir, dump_dir, x, ys, yerrs, compars, new_map, 
-	trace, texp, phase = 'primary', bin_time = 5, gp = False,
+def tripleplot(plot_dir, dump_dir, x, ys, yerrs, compars, detrended_data,
+	new_map, trace, texp, phase = 'primary', bin_time = 5, gp = False,
 	baseline_off = False):
 	#bin_time in mins
 
@@ -147,16 +147,6 @@ def tripleplot(plot_dir, dump_dir, x, ys, yerrs, compars, new_map,
 		gridspec_kw={'height_ratios': [3, 1, 3]})
 
 	#MAP lightcurve and reduction
-	systematics = np.dot(np.array(new_map[f"weights"]), compars)
-	vec = x - np.median(x)
-	if gp:
-		baseline = np.array(new_map['gp_pred'])
-	elif baseline_off:
-		baseline = 0.
-	else:
-		baseline = np.poly1d(np.array(new_map[f'baseline']))(vec)
-
-	detrended_data = (ys[0] - baseline)/systematics
 	lc = np.array(new_map[f'light_curve'])
 	true_err = np.sqrt(yerrs[0]**2 + float(new_map[f"jitter"])**2)
 	map_t0 = float(new_map["t0"])

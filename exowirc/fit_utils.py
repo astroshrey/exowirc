@@ -387,22 +387,34 @@ def fit_lightcurve(dump_dir, plot_dir, best_ap, background_mode,
         plot_initial_map(plot_dir, x, ys, yerrs, compars, map_soln, gp,
             baseline_off)
         print("MAP found!")
-        
+
     plot_white_light_curves(plot_dir, x, ys)
     print("Sampling posterior...")
     trace = sample_model(model, map_soln, tune, draws, target_accept)
     trace.posterior.to_netcdf(f'{dump_dir}posterior.nc', engine='scipy')
     print("Sampling complete!")
     new_map = get_new_map(trace)
+    systematics = np.dot(np.array(new_map[f"weights"]), compars)
+    vec = x - np.median(x)
+    if gp:
+        baseline = np.array(new_map['gp_pred'])
+    elif baseline_off:
+        baseline = 0.
+    else:
+        baseline = np.poly1d(np.array(new_map[f'baseline']))(vec)
+    detrended_data = (ys[0] - baseline)/systematics
+    true_err = np.sqrt(yerrs[0]**2 + float(new_map[f"jitter"])**2)    
+
     summary, varnames = gen_summary(dump_dir, trace, phase, ldc_val, gp,
         baseline_off)
     gen_latex_table(dump_dir, summary)
+    gen_lightcurve_table(dump_dir, x, detrended_data, true_err)
 
     print("Making corner and trace plots...")
     trace_plot(plot_dir, trace, varnames)
     corner_plot(plot_dir, trace, varnames)
     print("Visualizing fit...")
-    tripleplot(plot_dir, dump_dir, x, ys, yerrs, compars,
+    tripleplot(plot_dir, dump_dir, x, ys, yerrs, compars, detrended_data,
         new_map, trace, texp, bin_time = bin_time,
         phase = phase, gp = gp, 
         baseline_off = baseline_off)
