@@ -33,52 +33,56 @@ def plot_outlier_rejection(plot_dir, x, quick_detrend, filtered, mask,
 	return None
 
 def plot_initial_map(plot_dir, x, ys, yerrs, compars, map_soln, gp = False,
-	baseline_off = False):
-	lc = map_soln["light_curve"]
+	baseline_off = False, joint = False, joint_num = 'None'):
+	if joint:
+		append = f'_{joint_num}'
+	else:
+		append = ''
+	lc = map_soln["light_curve" + append]
 	vec = x - np.median(x)
-	systematics = np.dot(map_soln["weights"], compars)
+	systematics = np.dot(map_soln["weights" + append], compars)
 	if gp:
-		baseline = map_soln["gp_pred"]
+		baseline = map_soln["gp_pred" + append]
 	elif baseline_off:
 		baseline = 0.
 	else:
-		baseline = np.poly1d(map_soln["baseline"])(vec)
+		baseline = np.poly1d(map_soln["baseline" + append])(vec)
 	
 	detrended_data = (ys[0] - baseline)/systematics
-	true_err= np.sqrt(yerrs[0]**2 + map_soln["jitter"]**2)
+	true_err= np.sqrt(yerrs[0]**2 + map_soln["jitter" + append]**2)
 
 	plt.errorbar(x, detrended_data, yerr = true_err,
 		color = 'k', marker = '.', linestyle = 'None')
 	plt.plot(x, lc, 'r-', zorder = 10)
-	plt.savefig(f'{plot_dir}initial_map_soln.png')
+	plt.savefig(f'{plot_dir}initial_map_soln{append}.png')
 	plt.close()
 	return None
 
-def plot_quickfit(plot_dir, x, ys, yerrs):
+def plot_quickfit(plot_dir, x, ys, yerrs, tag = ''):
 	plt.errorbar(x, ys[0]/np.mean(ys[1:], axis = 0), yerr = yerrs[0],
 		marker = '.', linestyle = 'None')
 	plt.xlabel("Time [BJD]")
 	plt.ylabel("Normalized Flux (Quick Detrend)")
-	plt.savefig(f'{plot_dir}quickfit.png')
+	plt.savefig(f'{plot_dir}quickfit{tag}.png')
 	plt.close()
 	return None
 
-def plot_covariates(plot_dir, x, covariate_names, covs):
+def plot_covariates(plot_dir, x, covariate_names, covs, tag = ''):
 	for name, cov in zip(covariate_names, covs):
 		plt.plot(x, cov, 'C0-')
 		plt.xlabel("Time [BJD]")
 		plt.ylabel(f"{name}")
-		plt.savefig(f'{plot_dir}{name}.png')
+		plt.savefig(f'{plot_dir}{name}{tag}.png')
 		plt.close()
 	return None
 
-def plot_white_light_curves(plot_dir, x, ys):
+def plot_white_light_curves(plot_dir, x, ys, tag = ''):
 	for i, y in enumerate(ys):
 		fmtstr = 'k.' if i == 0 else '.'
 		lblstr = f'Comp {i}' if i > 0 else 'Target'
 		plt.plot(x, y, fmtstr, label = lblstr)
 	plt.legend(loc = 'best')
-	plt.savefig(f'{plot_dir}white_light_curves.png')
+	plt.savefig(f'{plot_dir}white_light_curves{tag}.png')
 	plt.legend(loc = 'best')
 	plt.close()
 	return None
@@ -123,21 +127,23 @@ def represent_noise_stats(dump_dir, new_map, resid, yerrs):
 	return None
 
 def corner_plot(plot_dir, samples, varnames):
-	corner.corner(samples, var_names = varnames)
-	plt.savefig(f'{plot_dir}cornerplt.pdf', dpi = 200,
+	corner.corner(samples, var_names = varnames,
+		hist2d_kwargs = {'data_kwargs': {'rasterized': True}})
+	plt.savefig(f'{plot_dir}cornerplt.png', dpi = 200,
 		bbox_inches = 'tight')
 	plt.close()
 	return None
 
 def trace_plot(plot_dir, data, varnames):
-	az.plot_trace(data, var_names = varnames)
+	az.plot_trace(data, var_names = varnames,
+		trace_kwargs = {'rasterized': True})
 	plt.savefig(f'{plot_dir}traceplt.pdf')
 	plt.close()
 	return None
 
 def tripleplot(plot_dir, dump_dir, x, ys, yerrs, compars, detrended_data,
-	new_map, trace, texp, phase = 'primary', bin_time = 5, gp = False,
-	baseline_off = False, plot_nominal = False):
+	new_map, trace, texp, map_t0, map_p, phase = 'primary', bin_time = 5,
+	gp = False, baseline_off = False, plot_nominal = False):
 	#bin_time in mins
 
 	matplotlib.rcParams['mathtext.fontset'] = 'cm'
@@ -149,8 +155,6 @@ def tripleplot(plot_dir, dump_dir, x, ys, yerrs, compars, detrended_data,
 	#MAP lightcurve and reduction
 	lc = np.array(new_map[f'light_curve'])
 	true_err = np.sqrt(yerrs[0]**2 + float(new_map[f"jitter"])**2)
-	map_t0 = float(new_map["t0"])
-	map_p = float(new_map['period'])
 	if phase == 'primary':
 		x_fold = (x - map_t0 + 0.5 * map_p) % map_p - 0.5 * map_p
 	else:
