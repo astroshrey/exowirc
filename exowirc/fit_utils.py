@@ -976,7 +976,7 @@ def fit_lightcurve_joint(dump_dirs, plot_dir, best_aps, background_modes,
 
     for i in range(len(x_list)):
         plot_initial_map(plot_dir, x_list[i], ys_list[i], yerrs_list[i],
-            compars_list[i], map_soln, False, False, True, i)
+            compars_list[i], map_soln, False, True, i)
 
     print("Initial MAP found!")
     #removed refitting map
@@ -990,7 +990,7 @@ def fit_lightcurve_joint(dump_dirs, plot_dir, best_aps, background_modes,
 
     print("Making corner and trace plots...") 
     plot_nominal = ror_nominal is not None
-    summary, varnames = gen_summary(plot_dir, trace, phase, ldc_val, False,
+    summary, varnames = gen_summary(plot_dir, trace, phase, ldc_val,
         False, plot_nominal, joint = len(x_list))
     gen_latex_table(plot_dir, summary)
     trace_plot(plot_dir, trace, varnames)
