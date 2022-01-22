@@ -17,7 +17,7 @@ from .io_utils import load_phot_data
 from .plot_utils import trace_plot, corner_plot, plot_aperture_opt, \
     plot_quickfit, plot_covariates, plot_initial_map, tripleplot,\
     plot_outlier_rejection, plot_white_light_curves, tripleplot_joint,\
-    plot_tess
+    plot_tess, doubleplot
 
 def clean_up(x, ys, yerrs, compars, weight_guess, cutoff_frac,
     end_num, filter_width, sigma_cut, plot = False, plot_dir = None, tag = ''):
@@ -426,6 +426,12 @@ def fit_lightcurve(dump_dir, plot_dir, best_ap, background_mode,
         if t0_prior[0] != 'fixed' else t0_prior[1]
     p = float(new_map['period']) \
         if period_prior[0] != 'fixed' else period_prior[1]
+    doubleplot(plot_dir, dump_dir, x, ys, yerrs, compars, detrended_data,
+        new_map, trace, texp, t0, p, bin_time = bin_time,
+        phase = phase, gp = gp, 
+        plot_nominal = plot_nominal,
+        baseline = baseline, fit_tess = fit_tess)
+ 
     tripleplot(plot_dir, dump_dir, x, ys, yerrs, compars, detrended_data,
         new_map, trace, texp, t0, p, bin_time = bin_time,
         phase = phase, gp = gp, 
