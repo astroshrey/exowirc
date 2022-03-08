@@ -441,10 +441,8 @@ def perform_photometry(calib_dir, dump_dir, img_dir, science_ranges,
 	xpos, ypos, psf_widths, phot_dict, err_dict = init_data(n_sources,
 		n_images, extraction_rads)
 	if background_mode == 'helium' or background_mode == 'global':	
-		bkg_arr = np.ones(np.shape(finding_frame))
-		if bkg_fname is not None:	
-			with fits.open(bkg_fname) as hdul:
-				bkg_frame = hdul[0].data 
+		with fits.open(bkg_fname) as hdul:
+			bkg_arr = hdul[0].data 
 
 	if background_mode is not None:
 		bkgs = np.array(load_bkgs(dump_dir))
@@ -471,7 +469,6 @@ def perform_photometry(calib_dir, dump_dir, img_dir, science_ranges,
 			error = np.sqrt(image / gain)
 
 		phot_table, xs, ys, widths = get_aperture_sum(sources, image, radii = extraction_rads, error = error, ann_rads = ann_rads, target_ind = source_ind)
-
 		xpos[:,i] = xs
 		ypos[:,i] = ys
 		psf_widths[:,i] = widths
