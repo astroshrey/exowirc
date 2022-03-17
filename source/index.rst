@@ -12,4 +12,4 @@ Exowirc Documentation
  
    modules
    installation
-   tutorial
+   tutorials
