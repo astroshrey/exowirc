@@ -279,9 +279,9 @@ def fit_lightcurve(dump_dir, plot_dir, best_ap, background_mode,
     fpfs_prior = None, tune = 1000, 
     draws = 1500, target_accept = 0.99, phase = 'primary',
     ldc_val = None, bin_time = 10., 
-    flux_cutoff = 0., end_num = 0, filter_width = 31,
+    flux_cutoff = 0., end_num = 0, filter_width = 31, refit = True,
     sigma_cut = 5, gp = False, sigma_prior = None, rho_prior = None,
-    ror_nominal = None, return_bic = True,
+    ror_nominal = None, return_bic = True, fixed_jitter = None,
     tess_x = None, tess_y = None, tess_yerr = None, tess_texp = None):
     """
     The main function used to fit the target light curve and find the best-fit transit model parameters.
@@ -377,22 +377,26 @@ def fit_lightcurve(dump_dir, plot_dir, best_ap, background_mode,
         texp, r_star_prior, t0_prior, period_prior,
         a_rs_prior, b_prior, jitter_prior, phase, ror_prior,
         fpfs_prior, ldc_val, gp, sigma_prior, rho_prior,
-        ror_nominal, tess_x, tess_y, tess_yerr, tess_texp)
-    plot_initial_map(plot_dir, x, ys, yerrs, compars, map_soln, gp)
+        ror_nominal, tess_x, tess_y, tess_yerr, tess_texp, 
+        fixed_jitter = fixed_jitter)
+    plot_initial_map(plot_dir, x, ys, yerrs, compars, map_soln, gp, 
+        fixed_jitter)
     print("Initial MAP found!")
-    if not gp:
+    if (not gp) and (refit):
         x, ys, yerrs, compars, mask = clean_after_map(x, ys, yerrs,
             compars, map_soln, sigma_cut, plot = True,
             plot_dir = plot_dir)
-    if sum(~mask) > 0: #if additional outliers were rejected
+    if sum(~mask) > 0: 
+        #if additional outliers were rejected
         print("Refitting MAP...")
         model, map_soln = make_model(x, ys, yerrs, compars, 
             weight_guess, texp, r_star_prior, t0_prior, 
             period_prior, a_rs_prior, b_prior, jitter_prior, 
             phase, ror_prior, fpfs_prior, ldc_val, gp,
             sigma_prior, rho_prior, ror_nominal,
-            tess_x, tess_y, tess_yerr, tess_texp)
-        plot_initial_map(plot_dir, x, ys, yerrs, compars, map_soln, gp)
+            tess_x, tess_y, tess_yerr, tess_texp, fixed_jitter)
+        plot_initial_map(plot_dir, x, ys, yerrs, compars, map_soln, gp,
+            fixed_jitter)
         print("MAP found!")
 
     plot_white_light_curves(plot_dir, x, ys)
@@ -409,12 +413,15 @@ def fit_lightcurve(dump_dir, plot_dir, best_ap, background_mode,
     else:
         baseline = 0.
     detrended_data = (ys[0] - baseline)/systematics
-    true_err = np.sqrt(yerrs[0]**2 + float(new_map[f"jitter"])**2)    
+    if fixed_jitter is None:
+        true_err = np.sqrt(yerrs[0]**2 + float(new_map[f"jitter"])**2) 
+    else:
+        true_err = np.sqrt(yerrs[0]**2 + fixed_jitter**2) 
     plot_nominal = ror_nominal is not None
-    fit_tess = (tess_x is not None) and (tess_y is not None) and (tess_yerr is not None) and \
-        (tess_texp is not None)
+    fit_tess = (tess_x is not None) and (tess_y is not None) and \
+        (tess_yerr is not None) and (tess_texp is not None)
     summary, varnames = gen_summary(dump_dir, trace, phase, ldc_val, gp,
-        plot_nominal, fit_tess = fit_tess)
+        plot_nominal, fit_tess = fit_tess, fixed_jitter = fixed_jitter)
     gen_latex_table(dump_dir, summary)
     gen_lightcurve_table(dump_dir, x, detrended_data, true_err)
 
@@ -428,26 +435,26 @@ def fit_lightcurve(dump_dir, plot_dir, best_ap, background_mode,
         if period_prior[0] != 'fixed' else period_prior[1]
     doubleplot(plot_dir, dump_dir, x, ys, yerrs, compars, detrended_data,
         new_map, trace, texp, t0, p, bin_time = bin_time,
-        phase = phase, gp = gp, 
-        plot_nominal = plot_nominal,
-        baseline = baseline, fit_tess = fit_tess)
+        phase = phase, gp = gp, fixed_jitter = fixed_jitter, 
+        plot_nominal = plot_nominal, baseline = baseline, fit_tess = fit_tess)
  
     tripleplot(plot_dir, dump_dir, x, ys, yerrs, compars, detrended_data,
         new_map, trace, texp, t0, p, bin_time = bin_time,
-        phase = phase, gp = gp, 
-        plot_nominal = plot_nominal,
-        baseline = baseline, fit_tess = fit_tess)
+        phase = phase, gp = gp, fixed_jitter = fixed_jitter,
+        plot_nominal = plot_nominal, baseline = baseline, fit_tess = fit_tess)
     if fit_tess:
-        plot_tess(plot_dir, tess_x, tess_y, tess_yerr, new_map, trace, tess_texp, t0, p, bin_time)
+        plot_tess(plot_dir, tess_x, tess_y, tess_yerr, new_map, trace,
+            tess_texp, t0, p, bin_time)
     print("Fitting complete!")
     if return_bic:
-        return bic
+        jit = new_map[f"jitter"] if fixed_jitter is None else fixed_jitter
+        return bic, len(x), float(jit), trace
     else:
         return None    
 
 def gen_summary(dump_dir, trace, phase, ldc_val, gp = False,
     plot_nominal = False, joint = 1,
-    fit_tess = False):
+    fit_tess = False, fixed_jitter = None):
     """
     Generates a csv table with summary information for all the parameters of the fit.
 
@@ -479,7 +486,10 @@ def gen_summary(dump_dir, trace, phase, ldc_val, gp = False,
             'r_star', 'jitter', 'weights']
  
     if joint == 1:
-        varnames += ['jitter', 'weights']
+        if fixed_jitter is None:
+            varnames += ['jitter', 'weights']
+        else:
+            varnames += ['weights']
     else:
         varnames += [f'jitter_{i}' for i in range(joint)]
         varnames += [f'weights_{i}' for i in range(joint)]
@@ -514,47 +524,65 @@ def get_bic(x, log_like, weights):
 def calculate_all_bics(dump_dir, img_dir, best_ap, background_mode, 
     all_covar_names, texp, r_star_prior, t0_prior, period_prior, a_rs_prior,
     b_prior, jitter_prior, phase, ror_prior, tune, draws, target_accept,
-    sigma_cut, filter_width, ror_nominal, ldc_val, gp = False, sigma_prior = None,
-    rho_prior = None):
+    sigma_cut, filter_width, ror_nominal, ldc_val, gp = False,
+    sigma_prior = None, rho_prior = None):
     bics = []
+    ndatas = []
+    traces = {}
     covar_combos = [[]]
     s = list(all_covar_names)
     covar_combos = list(chain.from_iterable(
         combinations(s, r) for r in range(len(s)+1)))
+    labels = []
+    print("Measuring jitter term...")
+    _,_,jitter,_=fit_lightcurve(dump_dir, img_dir, best_ap, background_mode, 
+        [], texp, r_star_prior, t0_prior, period_prior,
+        a_rs_prior, b_prior, jitter_prior, phase = phase, ror_prior = ror_prior,
+        tune = tune, draws = draws, target_accept = target_accept,
+        sigma_cut = sigma_cut, filter_width = filter_width,
+        ror_nominal = ror_nominal, refit = False, ldc_val = ldc_val, gp = gp,
+        sigma_prior = sigma_prior, rho_prior = rho_prior)
+    print("Measured jitter: ", jitter*1e6, " ppm")
     print("Testing covariate combinations: ", covar_combos)
-    for covariate_names in covar_combos:
-        bic = fit_lightcurve(dump_dir, img_dir, best_ap,
-            background_mode, covariate_names, texp,
-            r_star_prior, t0_prior, period_prior,
-            a_rs_prior, b_prior, jitter_prior,
-            phase = phase, ror_prior = ror_prior,
-            tune = tune, draws = draws,
-            target_accept = target_accept,
-            sigma_cut = sigma_cut,
-            filter_width = filter_width,
-            ror_nominal = ror_nominal,
-            ldc_val = ldc_val, gp = gp,
-            sigma_prior = sigma_prior, 
-            rho_prior = rho_prior)
+    for i, covariate_names in enumerate(covar_combos):
+        bic, ndata, _, trace = fit_lightcurve(dump_dir, img_dir, best_ap,
+            background_mode, covariate_names, texp, r_star_prior, t0_prior,
+            period_prior, a_rs_prior, b_prior, jitter_prior, phase = phase, 
+            ror_prior = ror_prior, tune = tune, draws = draws,
+            target_accept = target_accept, sigma_cut = sigma_cut,
+            filter_width = filter_width, ror_nominal = ror_nominal,
+            refit = False, ldc_val = ldc_val, gp = gp, 
+            sigma_prior = sigma_prior, rho_prior = rho_prior,
+            fixed_jitter = jitter)
         bics.append(bic)
+        ndatas.append(ndata)
+        traces[i] = trace
+        labels.append(i)
+    if np.all(np.array(ndatas) == ndatas[0]):
+        print("All datasets in the BIC comparison have the same length.")
+    else:
+        print("WARNING...not all datasets in the BIC comparison have the " + \
+            "same length, so you're comparing apples to oranges with the " + \
+            "likelihoods. Here are the dataset sizes: ", ndatas)
+
+    df_comp = az.compare(traces, ic = 'waic')
+    df_comp.to_csv(dump_dir + 'WAIC_comparison.csv')
+    df_comp = az.compare(traces, ic = 'loo')
+    df_comp.to_csv(dump_dir + 'LOO_comparison.csv')
+
     print("Completed testing covariate combinations!")
     print(f'Minimum deltaBIC is {min(bics - bics[0])} for' +  \
         f'{covar_combos[np.argmin(bics)]}')
     write_bics(dump_dir, covar_combos, bics)
     print("Refitting final...")
-    fit_lightcurve(dump_dir, img_dir, best_ap,
-            background_mode, covar_combos[np.argmin(bics)], texp,
-            r_star_prior, t0_prior, period_prior,
-            a_rs_prior, b_prior, jitter_prior,
-            phase = phase, ror_prior = ror_prior,
-            tune = tune, draws = draws,
-            target_accept = target_accept,
-            sigma_cut = sigma_cut,
-            filter_width = filter_width,
-            ror_nominal = ror_nominal,
-            ldc_val = ldc_val, gp = gp,
-            sigma_prior = sigma_prior,
-            rho_prior = rho_prior)
+    fit_lightcurve(dump_dir, img_dir, best_ap, background_mode, 
+        covar_combos[np.argmin(bics)], texp, r_star_prior, t0_prior,
+        period_prior, a_rs_prior, b_prior, jitter_prior, phase = phase,
+        ror_prior = ror_prior, tune = tune, draws = draws,
+        target_accept = target_accept, sigma_cut = sigma_cut,
+        filter_width = filter_width, ror_nominal = ror_nominal,
+        ldc_val = ldc_val, gp = gp, sigma_prior = sigma_prior,
+        rho_prior = rho_prior)
     return None
 
 def write_bics(dump_dir, covar_combos, bics):
@@ -725,7 +753,7 @@ def make_model(x, ys, yerrs, compars, weight_guess, texp, r_star_prior,
     ldc_val = None, gp = False,
     sigma_prior = None, rho_prior = None, 
     ror_nominal = None, tess_x = None, tess_y = None, tess_yerr = None,
-    tess_texp = None, nominal_bounds = (-0.2, 0.2)):
+    tess_texp = None, fixed_jitter = None, nominal_bounds = (-0.2, 0.2)):
     """
     Generates the light curve model with exoplanet.
 
@@ -779,8 +807,8 @@ def make_model(x, ys, yerrs, compars, weight_guess, texp, r_star_prior,
 
     """
     ##currently doing circular orbits ONLY
-    fit_tess = (tess_x is not None) and (tess_y is not None) and (tess_yerr is not None) and \
-        (tess_texp is not None)
+    fit_tess = (tess_x is not None) and (tess_y is not None) and \
+        (tess_yerr is not None) and (tess_texp is not None)
 
     with pm.Model() as model:
         if ldc_val:
@@ -822,9 +850,10 @@ def make_model(x, ys, yerrs, compars, weight_guess, texp, r_star_prior,
                 u_tess = xo.distributions.QuadLimbDark("u_tess")
                 star_tess = xo.LimbDarkLightCurve(u_tess)
                 ror_tess = pm.Uniform('ror_tess', 0, 0.3, testval = 0.1)
-                lightcurve_tess = pm.Deterministic("light_curve_TESS", pm.math.sum(
-                    star_tess.get_light_curve(orbit=orbit, r = ror_tess*r_star,
-                    t = tess_x, texp = tess_texp), axis = -1) + 1.)
+                lightcurve_tess = pm.Deterministic("light_curve_TESS", 
+                    pm.math.sum(star_tess.get_light_curve(orbit=orbit, 
+                    r = ror_tess*r_star, t = tess_x, texp = tess_texp),
+                    axis = -1) + 1.)
                 nominal_lightcurve = pm.Deterministic("light_curve_nominal",
                     pm.math.sum(star_tess.get_light_curve(orbit = orbit,
                     r = ror_tess*r_star, t = dummy_t, texp = tess_texp),
@@ -844,9 +873,12 @@ def make_model(x, ys, yerrs, compars, weight_guess, texp, r_star_prior,
             testval = weight_guess, shape = len(weight_guess))
         systematics = pm.math.dot(comp_weights, compars)
 
-        jitter = unpack_prior('jitter', jitter_prior)
+        if fixed_jitter is None:
+            jitter = unpack_prior('jitter', jitter_prior)
+        else:
+            jitter = fixed_jitter
         full_variance = yerrs[0]**2 + jitter**2
-    
+
         if gp:
             y_gp = ys[0] - systematics*lightcurve
             sigma = unpack_prior('sigma', sigma_prior)
@@ -861,7 +893,8 @@ def make_model(x, ys, yerrs, compars, weight_guess, texp, r_star_prior,
             full_model = systematics*lightcurve
             pm.Deterministic("full_model", full_model)
             if fit_tess:
-                err_scale = pm.Uniform('tess_error_scaling', 0.5, 1.5, testval = 1.)
+                err_scale = pm.Uniform('tess_error_scaling', 0.5, 1.5,
+                    testval = 1.)
                 pm.Normal("tess_obs", mu = lightcurve_tess,
                     sd = tess_yerr*err_scale, observed = tess_y)  
             pm.Normal(f"obs", mu=full_model,
@@ -982,7 +1015,8 @@ def fit_lightcurve_joint(dump_dirs, plot_dir, best_aps, background_modes,
 
     for i in range(len(x_list)):
         plot_initial_map(plot_dir, x_list[i], ys_list[i], yerrs_list[i],
-            compars_list[i], map_soln, False, True, i)
+            compars_list[i], map_soln, gp = False, 
+            joint = True, joint_num = i)
 
     print("Initial MAP found!")
     #removed refitting map
@@ -1011,8 +1045,8 @@ def fit_lightcurve_joint(dump_dirs, plot_dir, best_aps, background_modes,
     x_final, y_final, yerr_final, resid_final, full_x, full_y, \
         full_yerr, full_resid = fully_fold(x_list,
         ys_list, yerrs_list, compars_list, new_map, t0, p)
-    tripleplot_joint(plot_dir, x_final, y_final, yerr_final, resid_final,
-        new_map, trace, texps, t0, p,
+    tripleplot_joint(plot_dir, x_final, y_final, yerr_final, yerrs_list, 
+        resid_final, new_map, trace, texps, t0, p,
         full_x, full_y, full_yerr, full_resid,
         bin_time = bin_time, plot_nominal = plot_nominal)
     gen_lightcurve_table(plot_dir, full_x, full_y, full_yerr)
