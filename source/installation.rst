@@ -9,9 +9,9 @@ To install the data reduction package, enter the bash command:
 
   pip3 install exowirc
 
-To operate the library, first, create a sample script following one of the tutorials outlined on this website.
+To operate the library, first create a sample script following one of the tutorials outlined on this website.
 
-Next, make sure that the paths at the top of the script point to where the raw data are stored and where you want the data products to go.
+Next, make sure that the paths at the top of the script correctly point to where the pipeline code is stored.
 
 Then, to run the sample script with bash by entering:
 

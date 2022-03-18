@@ -1,7 +1,7 @@
-Tutorial
+Tutorials
 =========
 
-Exowirc v.1.0 is composed of five major calibration steps: remake_darks_and_flats, remake_bkg, calibrate_data, photometric_extraction, and fit_for_eclipse. 
+Exowirc v.1.0 is composed of five major functions: remake_darks_and_flats, remake_bkg, calibrate_data, photometric_extraction, and fit_for_eclipse. 
 
 Import all the necessary libraries before starting:
 
