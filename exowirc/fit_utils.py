@@ -6,7 +6,7 @@ import arviz as az
 import theano.tensor as tt
 import decimal
 
-from scipy.signal import medfilt
+import scipy.ndimage as sn
 from scipy.stats import median_abs_deviation
 from astropy.stats import sigma_clip
 from celerite2.theano import terms, GaussianProcess
@@ -17,10 +17,11 @@ from .io_utils import load_phot_data
 from .plot_utils import trace_plot, corner_plot, plot_aperture_opt, \
     plot_quickfit, plot_covariates, plot_initial_map, tripleplot,\
     plot_outlier_rejection, plot_white_light_curves, tripleplot_joint,\
-    plot_tess, doubleplot
+    plot_tess, doubleplot, plot_initial_map_tess, doubleplot_joint
 
 def clean_up(x, ys, yerrs, compars, weight_guess, cutoff_frac,
-    end_num, filter_width, sigma_cut, plot = False, plot_dir = None, tag = ''):
+    end_num, filter_width, sigma_cut, plot = False, plot_dir = None,
+    verbose = True, tag = ''):
     """
     Cleans up photometry by sigma clipping and removing any data during large flux dips
 
@@ -64,33 +65,45 @@ def clean_up(x, ys, yerrs, compars, weight_guess, cutoff_frac,
 
     """
 
+    if verbose:
+        print(f"Using a sigma threshold of {sigma_cut}...")
     #n sigma outlier rejection against a median filter
     full_mask = np.ones(x.shape, dtype = 'bool')
     quick_detrend = ys[0]/weight_guess.dot(compars)
-    median_filter = medfilt(quick_detrend, filter_width)
+    median_filter = sn.median_filter(quick_detrend, filter_width, 
+            mode = 'constant', cval = 1.)
     filt = quick_detrend / median_filter
     masked_arr = sigma_clip(filt, sigma = sigma_cut,
         stdfunc = median_abs_deviation)
     full_mask = ~masked_arr.mask
+    if verbose:
+        print(f"Clipped {sum(~full_mask)} points in initial sigma clipping")
 
     #flux cutoff for very rapidly varying light curve
     cutoff = cutoff_frac*max(ys[0])
     mask = ys[0] > cutoff
     full_mask &= mask
+    if verbose:
+        print(f"Clipped {sum(~mask)} points in flux cutoff")
 
     #cut nans
     mask = np.isnan(ys[0]) | np.isnan(yerrs[0])
     full_mask &= ~mask
+    if verbose:
+        print(f"Clipped {sum(mask)} points in nan clipping")
 
     #loosing the last few data
     mask = np.ones(x.shape, dtype = 'bool')
     if end_num > 0:
         mask[-end_num:] = False
     full_mask &= mask
+    if verbose:
+        print(f"Clipped {sum(~mask)} points in edge cutoff")
 
     n_reject = sum(~full_mask)
     clip_perc = n_reject/len(full_mask)*100.
-    print(f"Clipped {clip_perc}% of the data")
+    if verbose:
+        print(f"Clipped {clip_perc}% of the data")
     if plot and plot_dir is not None:
         plot_outlier_rejection(plot_dir, x, quick_detrend,
             median_filter, full_mask, tag)
@@ -98,7 +111,7 @@ def clean_up(x, ys, yerrs, compars, weight_guess, cutoff_frac,
         compars[:, full_mask], full_mask
 
 def clean_after_map(x, ys, yerrs, compars, map_soln, sigma_cut, plot = True,
-    plot_dir = None):
+    plot_dir = None, extra_tag = '', verbose = True, n_model = ''):
     """
     Cleaning the light curves by clipping any data that significantly deviates from the initial MAP fit.
 
@@ -135,8 +148,10 @@ def clean_after_map(x, ys, yerrs, compars, map_soln, sigma_cut, plot = True,
         Array of booleans representing which measurements to use in the final light curves.
 
     """
+    if n_model != '':
+        n_model = '_' + n_model
 
-    resid = ys[0] - map_soln['full_model']
+    resid = ys[0] / map_soln[f'full_model{n_model}']
     masked_arr = sigma_clip(resid, sigma = sigma_cut,
         stdfunc = median_abs_deviation)
     full_mask = ~masked_arr.mask
@@ -145,15 +160,19 @@ def clean_after_map(x, ys, yerrs, compars, map_soln, sigma_cut, plot = True,
     clip_perc = n_reject/len(full_mask)*100.
 
     if plot and plot_dir is not None:
-        plot_outlier_rejection(plot_dir, x, resid, np.zeros(x.shape),
-            full_mask, tag = '_afterMAP')
+        plot_outlier_rejection(plot_dir, x, resid, np.ones(x.shape),
+            full_mask, tag = f'_afterMAP_{extra_tag}{n_model}')
 
-    print(f"Clipped {clip_perc}% of the data after MAP fitting")
+    if verbose:
+        print(f"Clipped {n_reject} points out of {x.shape} after MAP fitting")
+        print(f"corresponding to {clip_perc}% of the data")
+
     return x[full_mask], ys[:,full_mask], yerrs[:,full_mask], \
         compars[:, full_mask], full_mask
 
 def quick_aperture_optimize(dump_dir, plot_dir, apertures,
-    flux_cutoff = 0., end_num = 0, filter_width = 31, sigma_cut = 5):
+    flux_cutoff = 0., end_num = 0, filter_width = 31,
+    sigma_cut = 5):
     """
     Quickly detrend the light curves and calculate the final RMS deviations for all the apertures included in the "apertures" range to deterrmine the optimal aperture.
 
@@ -190,10 +209,11 @@ def quick_aperture_optimize(dump_dir, plot_dir, apertures,
 
         x, ys, yerrs, compars, _ = clean_up(
             x, ys, yerrs, compars, weight_guess, flux_cutoff,
-            end_num, filter_width, sigma_cut)
+            end_num, filter_width, sigma_cut, verbose = False)
 
         quick_detrend = ys[0]/weight_guess.dot(compars)
-        median_filter = medfilt(quick_detrend, filter_width)
+        median_filter = sn.median_filter(quick_detrend, filter_width, 
+            mode = 'constant', cval = 1.)
         filt = quick_detrend / median_filter
         rmses.append(np.std(filt)/len(x))
 
@@ -282,7 +302,8 @@ def fit_lightcurve(dump_dir, plot_dir, best_ap, background_mode,
     flux_cutoff = 0., end_num = 0, filter_width = 31, refit = True,
     sigma_cut = 5, gp = False, sigma_prior = None, rho_prior = None,
     ror_nominal = None, return_bic = True, fixed_jitter = None,
-    tess_x = None, tess_y = None, tess_yerr = None, tess_texp = None):
+    tess_x = None, tess_y = None, tess_yerr = None, tess_texp = None,
+    tess_t0_prior = None, sigma_cut_init = 10):
     """
     The main function used to fit the target light curve and find the best-fit transit model parameters.
 
@@ -349,6 +370,9 @@ def fit_lightcurve(dump_dir, plot_dir, best_ap, background_mode,
 
     """
     
+    fit_tess = (tess_x is not None) and (tess_y is not None) and \
+        (tess_yerr is not None) and (tess_texp is not None)
+
     x_init, ys_init, yerrs_init, bkgs_init, centroid_x_init, \
         centroid_y_init, airmass, widths = \
         load_phot_data(dump_dir, best_ap)
@@ -357,7 +381,7 @@ def fit_lightcurve(dump_dir, plot_dir, best_ap, background_mode,
 
     x, ys, yerrs, compars, mask = clean_up(x_init, ys_init, yerrs_init,
             compars_init, weight_guess_init, flux_cutoff,
-            end_num, filter_width, sigma_cut, plot = True,
+            end_num, filter_width, sigma_cut_init, plot = True,
             plot_dir = plot_dir)
 
     cov_dict = get_covariates(bkgs_init, centroid_x_init, centroid_y_init,
@@ -370,36 +394,37 @@ def fit_lightcurve(dump_dir, plot_dir, best_ap, background_mode,
         [0]*(len(covs) + 1))
     compars = np.vstack((compars, *covs))
     compars = np.vstack((compars, x - np.mean(x)))
-    print("Constructing model...")
 
-    ##model in pymc3
-    model, map_soln = make_model(x, ys, yerrs, compars, weight_guess,
-        texp, r_star_prior, t0_prior, period_prior,
-        a_rs_prior, b_prior, jitter_prior, phase, ror_prior,
-        fpfs_prior, ldc_val, gp, sigma_prior, rho_prior,
-        ror_nominal, tess_x, tess_y, tess_yerr, tess_texp, 
-        fixed_jitter = fixed_jitter)
-    plot_initial_map(plot_dir, x, ys, yerrs, compars, map_soln, gp, 
-        fixed_jitter)
-    print("Initial MAP found!")
-    if (not gp) and (refit):
-        x, ys, yerrs, compars, mask = clean_after_map(x, ys, yerrs,
-            compars, map_soln, sigma_cut, plot = True,
-            plot_dir = plot_dir)
-    if sum(~mask) > 0: 
-        #if additional outliers were rejected
-        print("Refitting MAP...")
-        model, map_soln = make_model(x, ys, yerrs, compars, 
-            weight_guess, texp, r_star_prior, t0_prior, 
-            period_prior, a_rs_prior, b_prior, jitter_prior, 
-            phase, ror_prior, fpfs_prior, ldc_val, gp,
-            sigma_prior, rho_prior, ror_nominal,
-            tess_x, tess_y, tess_yerr, tess_texp, fixed_jitter)
-        plot_initial_map(plot_dir, x, ys, yerrs, compars, map_soln, gp,
+    mask = np.zeros(x.shape, dtype = bool)
+    i = 0
+    #refitting the MAP with iterative sigma clipping until no new outliers found
+    while sum(~mask) > 0:
+        i += 1
+        if i == 1:
+            print("Constructing model...")
+        else:
+            print("Refitting MAP...")
+        model, map_soln = make_model(x, ys, yerrs, compars, weight_guess,
+            texp, r_star_prior, t0_prior, period_prior,
+            a_rs_prior, b_prior, jitter_prior, phase, ror_prior,
+            fpfs_prior, ldc_val, gp, sigma_prior, rho_prior,
+            ror_nominal, tess_x, tess_y, tess_yerr, tess_texp, 
+            fixed_jitter = fixed_jitter, tess_t0_prior = tess_t0_prior)
+        plot_initial_map(plot_dir, x, ys, yerrs, compars, map_soln, gp, 
             fixed_jitter)
-        print("MAP found!")
-
+        if fit_tess:
+            plot_initial_map_tess(plot_dir, tess_x, tess_y, tess_yerr, map_soln,
+                    tess_t0_prior)
+        print("Initial MAP found!")
+        if refit:
+            x, ys, yerrs, compars, mask = clean_after_map(x, ys, yerrs,
+                compars, map_soln, sigma_cut, plot = True,
+                plot_dir = plot_dir, extra_tag = i)
+        else:
+            mask = np.ones(x.shape, dtype = bool)
+    print("MAP found!")
     plot_white_light_curves(plot_dir, x, ys)
+
     print("Sampling posterior...")
     trace = sample_model(model, map_soln, tune, draws, target_accept)
     trace.posterior.to_netcdf(f'{dump_dir}posterior.nc', engine='scipy')
@@ -418,10 +443,9 @@ def fit_lightcurve(dump_dir, plot_dir, best_ap, background_mode,
     else:
         true_err = np.sqrt(yerrs[0]**2 + fixed_jitter**2) 
     plot_nominal = ror_nominal is not None
-    fit_tess = (tess_x is not None) and (tess_y is not None) and \
-        (tess_yerr is not None) and (tess_texp is not None)
     summary, varnames = gen_summary(dump_dir, trace, phase, ldc_val, gp,
-        plot_nominal, fit_tess = fit_tess, fixed_jitter = fixed_jitter)
+        plot_nominal, fit_tess = fit_tess, fixed_jitter = fixed_jitter,
+        tess_t0_prior = tess_t0_prior)
     gen_latex_table(dump_dir, summary)
     gen_lightcurve_table(dump_dir, x, detrended_data, true_err)
 
@@ -443,8 +467,10 @@ def fit_lightcurve(dump_dir, plot_dir, best_ap, background_mode,
         phase = phase, gp = gp, fixed_jitter = fixed_jitter,
         plot_nominal = plot_nominal, baseline = baseline, fit_tess = fit_tess)
     if fit_tess:
+        if tess_t0_prior is not None:
+            t0 = float(new_map["t0_tess"])
         plot_tess(plot_dir, tess_x, tess_y, tess_yerr, new_map, trace,
-            tess_texp, t0, p, bin_time)
+            tess_texp, t0, p, tess_t0_prior, bin_time)
     print("Fitting complete!")
     if return_bic:
         jit = new_map[f"jitter"] if fixed_jitter is None else fixed_jitter
@@ -453,8 +479,8 @@ def fit_lightcurve(dump_dir, plot_dir, best_ap, background_mode,
         return None    
 
 def gen_summary(dump_dir, trace, phase, ldc_val, gp = False,
-    plot_nominal = False, joint = 1,
-    fit_tess = False, fixed_jitter = None):
+    plot_nominal = False, joint = 1, fit_tess = False, 
+    fixed_jitter = None, tess_t0_prior = None):
     """
     Generates a csv table with summary information for all the parameters of the fit.
 
@@ -501,6 +527,8 @@ def gen_summary(dump_dir, trace, phase, ldc_val, gp = False,
         varnames += ['mid_transit_excess_depth']
     if fit_tess:
         varnames += ['u_tess', 'ror_tess', 'tess_error_scaling']
+    if tess_t0_prior is not None:
+        varnames += ['t0_tess']
 
     func_dict = {
         "16%": lambda x: np.percentile(x, 16),
@@ -525,7 +553,7 @@ def calculate_all_bics(dump_dir, img_dir, best_ap, background_mode,
     all_covar_names, texp, r_star_prior, t0_prior, period_prior, a_rs_prior,
     b_prior, jitter_prior, phase, ror_prior, tune, draws, target_accept,
     sigma_cut, filter_width, ror_nominal, ldc_val, gp = False,
-    sigma_prior = None, rho_prior = None):
+    sigma_prior = None, rho_prior = None, sigma_cut_init = 4, end_num = 0):
     bics = []
     ndatas = []
     traces = {}
@@ -539,7 +567,8 @@ def calculate_all_bics(dump_dir, img_dir, best_ap, background_mode,
         [], texp, r_star_prior, t0_prior, period_prior,
         a_rs_prior, b_prior, jitter_prior, phase = phase, ror_prior = ror_prior,
         tune = tune, draws = draws, target_accept = target_accept,
-        sigma_cut = sigma_cut, filter_width = filter_width,
+        sigma_cut = sigma_cut, sigma_cut_init = sigma_cut_init,
+        filter_width = filter_width, end_num = end_num,
         ror_nominal = ror_nominal, refit = False, ldc_val = ldc_val, gp = gp,
         sigma_prior = sigma_prior, rho_prior = rho_prior)
     print("Measured jitter: ", jitter*1e6, " ppm")
@@ -550,6 +579,7 @@ def calculate_all_bics(dump_dir, img_dir, best_ap, background_mode,
             period_prior, a_rs_prior, b_prior, jitter_prior, phase = phase, 
             ror_prior = ror_prior, tune = tune, draws = draws,
             target_accept = target_accept, sigma_cut = sigma_cut,
+            sigma_cut_init = sigma_cut_init, end_num = end_num,
             filter_width = filter_width, ror_nominal = ror_nominal,
             refit = False, ldc_val = ldc_val, gp = gp, 
             sigma_prior = sigma_prior, rho_prior = rho_prior,
@@ -582,7 +612,7 @@ def calculate_all_bics(dump_dir, img_dir, best_ap, background_mode,
         target_accept = target_accept, sigma_cut = sigma_cut,
         filter_width = filter_width, ror_nominal = ror_nominal,
         ldc_val = ldc_val, gp = gp, sigma_prior = sigma_prior,
-        rho_prior = rho_prior)
+        rho_prior = rho_prior, end_num = end_num)
     return None
 
 def write_bics(dump_dir, covar_combos, bics):
@@ -753,7 +783,8 @@ def make_model(x, ys, yerrs, compars, weight_guess, texp, r_star_prior,
     ldc_val = None, gp = False,
     sigma_prior = None, rho_prior = None, 
     ror_nominal = None, tess_x = None, tess_y = None, tess_yerr = None,
-    tess_texp = None, fixed_jitter = None, nominal_bounds = (-0.2, 0.2)):
+    tess_texp = None, fixed_jitter = None, tess_t0_prior = None,
+    nominal_bounds = (-0.2, 0.2)):
     """
     Generates the light curve model with exoplanet.
 
@@ -850,13 +881,23 @@ def make_model(x, ys, yerrs, compars, weight_guess, texp, r_star_prior,
                 u_tess = xo.distributions.QuadLimbDark("u_tess")
                 star_tess = xo.LimbDarkLightCurve(u_tess)
                 ror_tess = pm.Uniform('ror_tess', 0, 0.3, testval = 0.1)
+                if tess_t0_prior is not None:
+                    t0_tess = unpack_prior('t0_tess', tess_t0_prior)
+                    dummy_t_tess = pm.Deterministic("dummy_t_tess",
+                            t0_tess + arr)
+                    orbit_tess = xo.orbits.KeplerianOrbit(period = period,
+                        t0 = t0_tess, b = b, a = a_rs*r_star,
+                        r_star = r_star)
+                else:
+                    orbit_tess = orbit
+                    dummy_t_tess = dummy_t
                 lightcurve_tess = pm.Deterministic("light_curve_TESS", 
-                    pm.math.sum(star_tess.get_light_curve(orbit=orbit, 
+                    pm.math.sum(star_tess.get_light_curve(orbit=orbit_tess, 
                     r = ror_tess*r_star, t = tess_x, texp = tess_texp),
                     axis = -1) + 1.)
                 nominal_lightcurve = pm.Deterministic("light_curve_nominal",
-                    pm.math.sum(star_tess.get_light_curve(orbit = orbit,
-                    r = ror_tess*r_star, t = dummy_t, texp = tess_texp),
+                    pm.math.sum(star.get_light_curve(orbit = orbit_tess,
+                    r = ror_tess*r_star, t = dummy_t_tess, texp = tess_texp),
                     axis = -1) + 1)
                 mid_transit = pm.Deterministic("mid_transit_excess_depth",
                     -(tt.min(dummy_lightcurve) - tt.min(nominal_lightcurve)))
@@ -962,7 +1003,8 @@ def fit_lightcurve_joint(dump_dirs, plot_dir, best_aps, background_modes,
     draws = 2500, target_accept = 0.99, phase = 'primary',
     ldc_val = None, bin_time = 10., 
     flux_cutoffs = [0.], end_nums = [0], filter_widths = [31],
-    sigma_cuts = [5], sigma_prior = None, rho_prior = None,
+    sigma_cuts = [5], sigma_cut_init = 10, 
+    sigma_prior = None, rho_prior = None,
     ror_nominal = None):
     """
     The main function used to fit the target light curve and find the best-fit transit model parameters.
@@ -972,7 +1014,7 @@ def fit_lightcurve_joint(dump_dirs, plot_dir, best_aps, background_modes,
 
     """
     x_list, ys_list, yerrs_list, compars_list, weight_guess_list = [],[],[],[],[]
-
+    n_datasets = len(dump_dirs)
     for i, (dump_dir, best_ap, background_mode, covariate_names, texp, \
         flux_cutoff, end_num, filter_width, sigma_cut) in enumerate(zip(
         dump_dirs, best_aps, background_modes, covariate_names_list, texps,
@@ -986,7 +1028,7 @@ def fit_lightcurve_joint(dump_dirs, plot_dir, best_aps, background_modes,
 
         x, ys, yerrs, compars, mask = clean_up(x_init, ys_init, yerrs_init,
                 compars_init, weight_guess_init, flux_cutoff,
-                end_num, filter_width, sigma_cut, plot = True,
+                end_num, filter_width, sigma_cut_init, plot = True,
                 plot_dir = plot_dir, tag = tag)
 
         cov_dict = get_covariates(bkgs_init, centroid_x_init, centroid_y_init,
@@ -1005,21 +1047,69 @@ def fit_lightcurve_joint(dump_dirs, plot_dir, best_aps, background_modes,
         compars_list.append(compars)
         weight_guess_list.append(weight_guess)
 
-    print("Constructing model...")
+    '''
+    mask = np.zeros(x.shape, dtype = bool)
+    i = 0
+    #refitting the MAP with iterative sigma clipping until no new outliers found
+    while sum(~mask) > 0:
+        i += 1
+        if i == 1:
+            print("Constructing model...")
+        else:
+            print("Refitting MAP...")
+        model, map_soln = make_model(x, ys, yerrs, compars, weight_guess,
+            texp, r_star_prior, t0_prior, period_prior,
+            a_rs_prior, b_prior, jitter_prior, phase, ror_prior,
+            fpfs_prior, ldc_val, gp, sigma_prior, rho_prior,
+            ror_nominal, tess_x, tess_y, tess_yerr, tess_texp,
+            fixed_jitter = fixed_jitter, tess_t0_prior = tess_t0_prior)
+        plot_initial_map(plot_dir, x, ys, yerrs, compars, map_soln, gp,
+            fixed_jitter)
+        if fit_tess:
+            plot_initial_map_tess(plot_dir, tess_x, tess_y, tess_yerr, map_soln,
+                    tess_t0_prior)
+        print("Initial MAP found!")
+        if refit:
+            x, ys, yerrs, compars, mask = clean_after_map(x, ys, yerrs,
+                compars, map_soln, sigma_cut, plot = True,
+                plot_dir = plot_dir, extra_tag = i)
+        else:
+            mask = np.ones(x.shape, dtype = bool)
+    print("MAP found!")
+    plot_white_light_curves(plot_dir, x, ys)
 
-    ##model in pymc3
-    model, map_soln = make_model_joint(x_list, ys_list, yerrs_list,
-        compars_list, weight_guess_list, texps, r_star_prior, t0_prior,
-        period_prior, a_rs_prior, b_prior, jitter_prior, ror_prior,
-        ldc_val, ror_nominal)
+    '''
+    masks = [np.zeros(x.shape, dtype = bool) for x in x_list]
+    j = 0
+    mask_sums = [sum(~mask_i) for mask_i in masks]
+    while sum(mask_sums) > 0:
+        j += 1
+        if j == 1:
+            print("Constructing model...")
+        else:
+            print("Refitting MAP...")
+        ##model in pymc3
+        model, map_soln = make_model_joint(x_list, ys_list, yerrs_list,
+            compars_list, weight_guess_list, texps, r_star_prior, t0_prior,
+            period_prior, a_rs_prior, b_prior, jitter_prior, ror_prior,
+            ldc_val, ror_nominal)
+        for i, (x, ys, yerrs, compars) in enumerate(zip(x_list, \
+            ys_list, yerrs_list, compars_list)):
 
-    for i in range(len(x_list)):
-        plot_initial_map(plot_dir, x_list[i], ys_list[i], yerrs_list[i],
-            compars_list[i], map_soln, gp = False, 
-            joint = True, joint_num = i)
+            plot_initial_map(plot_dir, x, ys, yerrs, compars, 
+                    map_soln, gp = False, joint = True, joint_num = i)
+            x, ys, yerrs, compars, mask = clean_after_map(x, ys, yerrs,
+                compars, map_soln, sigma_cut, plot = True,
+                plot_dir = plot_dir, extra_tag = str(j),
+                n_model = str(i))
+            x_list[i] = x
+            ys_list[i] = ys
+            yerrs_list[i] = yerrs
+            compars_list[i] = compars
+            masks[i] = mask
+        mask_sums = [sum(~mask_i) for mask_i in masks]
 
-    print("Initial MAP found!")
-    #removed refitting map
+    print("MAP found!")
     for i, (x, ys) in enumerate(zip(x_list, ys_list)): 
         plot_white_light_curves(plot_dir, x, ys, tag = f'_{i}')
 
@@ -1046,6 +1136,10 @@ def fit_lightcurve_joint(dump_dirs, plot_dir, best_aps, background_modes,
         full_yerr, full_resid = fully_fold(x_list,
         ys_list, yerrs_list, compars_list, new_map, t0, p)
     tripleplot_joint(plot_dir, x_final, y_final, yerr_final, yerrs_list, 
+        resid_final, new_map, trace, texps, t0, p,
+        full_x, full_y, full_yerr, full_resid,
+        bin_time = bin_time, plot_nominal = plot_nominal)
+    doubleplot_joint(plot_dir, x_final, y_final, yerr_final, yerrs_list, 
         resid_final, new_map, trace, texps, t0, p,
         full_x, full_y, full_yerr, full_resid,
         bin_time = bin_time, plot_nominal = plot_nominal)
