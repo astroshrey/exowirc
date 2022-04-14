@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import photutils
 import corner
 import matplotlib
+from .io_utils import save_photon_noise
 
 def plot_sources(img_dir, image, sources, fwhm, ann_rads):
     positions = [(x, y) for x, y in zip(
@@ -28,6 +29,11 @@ def plot_outlier_rejection(plot_dir, x, quick_detrend, filtered, mask,
     plt.plot(x, quick_detrend, 'k.')
     plt.plot(x, filtered, 'r-')
     plt.plot(x[~mask], quick_detrend[~mask], 'r.')
+    plt.xlabel("Time [BJD]")
+    if 'afterMAP' in tag:
+        plt.ylabel("Data / MAP light curve")
+    else:
+        plt.ylabel("Relative Flux")
     plt.savefig(f'{plot_dir}outlier_rejection'+tag+'.png')
     plt.close()
     return None
@@ -217,7 +223,7 @@ def doubleplot(plot_dir, dump_dir, x, ys, yerrs, compars, detrended_data,
         #	alpha = 0.3, facecolor = f'b', lw = 1)
     if fit_tess:
         dummy_lc_opt = new_map['light_curve_nominal']
-        ax[0].plot(dummy_fold, dummy_lc_opt, f'b-', zorder = 10, lw = 2)
+        #ax[0].plot(dummy_fold, dummy_lc_opt, f'b-', zorder = 10, lw = 2)
 
     minx = min(x_fold)
     maxx = max(x_fold)
@@ -231,7 +237,8 @@ def doubleplot(plot_dir, dump_dir, x, ys, yerrs, compars, detrended_data,
     ax[1].set_xlim(minx, maxx)
     fig.align_ylabels(ax)
     fig.subplots_adjust(hspace=0)
-
+    
+    plt.tight_layout()
     plt.savefig(f'{plot_dir}double_plot.pdf', dpi = 200,
         bbox_inches = 'tight')
     plt.close()
@@ -321,6 +328,9 @@ def tripleplot(plot_dir, dump_dir, x, ys, yerrs, compars, detrended_data,
     photon_noise_errors = [gen_photon_noise_errors(
         plot_resid, photon_noise, bs) for bs in binsizes]
 
+    save_photon_noise(dump_dir, binsizes, rmses, photon_noise_errors,
+            photon_noises)
+
     ax[2].errorbar(binsizes*1440., rmses, yerr = photon_noise_errors,
         color = 'k')
     ax[2].plot(binsizes*1440., photon_noises, 'r-')
@@ -351,7 +361,7 @@ def tripleplot(plot_dir, dump_dir, x, ys, yerrs, compars, detrended_data,
     return None
 
 def plot_tess(plot_dir, x, ys, yerrs, new_map, trace, texp, map_t0, map_p, 
-    bin_time = 10):
+    tess_t0_prior, bin_time = 10):
     #bin_time in mins
 
     matplotlib.rcParams['mathtext.fontset'] = 'cm'
@@ -387,15 +397,18 @@ def plot_tess(plot_dir, x, ys, yerrs, new_map, trace, texp, map_t0, map_p,
         linestyle = 'None', ms = 5, zorder = 5)
 
     #MAP wirc light curve
-    dummy_fold = new_map['dummy_t'] - map_t0
-    dummy_lc = new_map['light_curve_nominal']
-    ax[0].plot(dummy_fold, dummy_lc, f'b-', zorder = 10, lw = 2)
+    #if tess_t0_prior is not None:
+    #    dummy_fold = new_map['dummy_t_tess'] - map_t0
+    #else:
+    #    dummy_fold = new_map['dummy_t'] - map_t0
+    #dummy_lc = new_map['light_curve_nominal']
+    ax[0].plot(x_fold[sort_inds], lc[sort_inds], f'b-', zorder = 10, lw = 2)
     #68 percentile on the confidence interval
     stacked = trace.posterior.stack(draws=("chain", "draw"))
-    lcsamps = stacked.light_curve_nominal.values
+    lcsamps = stacked.light_curve_TESS.values
     lower = np.percentile(lcsamps, 16, axis = 1)
     upper = np.percentile(lcsamps, 84, axis = 1)
-    ax[0].fill_between(dummy_fold, lower, upper,
+    ax[0].fill_between(x_fold[sort_inds], lower[sort_inds], upper[sort_inds],
         alpha = 0.3, facecolor = f'b', lw = 1)
 
     minx = -0.2
@@ -465,6 +478,9 @@ def tripleplot_joint(plot_dir, x_final, y_final, yerrs_final, yerrs_list,
         photon_noise_errors = [gen_photon_noise_errors(
             plot_resid, photon_noise, bs) for bs in binsizes]
 
+        save_photon_noise(plot_dir, binsizes, rmses, photon_noise_errors,
+                photon_noises, tag = str(i))
+
         ax[2].errorbar(binsizes*1440., rmses, marker = m,
             yerr = photon_noise_errors, color = 'k')
         ax[2].plot(binsizes*1440., photon_noises, marker = m,
@@ -521,3 +537,112 @@ def tripleplot_joint(plot_dir, x_final, y_final, yerrs_final, yerrs_list,
     plt.close()
 
     return full_x, full_y, full_yerr
+
+def plot_initial_map_tess(plot_dir, x, ys, yerrs, map_soln, tess_t0_prior):
+    lc = np.array(map_soln[f'light_curve_TESS'])
+    true_err = yerrs*float(map_soln[f'tess_error_scaling'])
+    if tess_t0_prior is not None:
+        map_t0 = float(map_soln['t0_tess'])
+    else:
+        map_t0 = float(map_soln['t0'])
+    map_p = float(map_soln['period'])
+    x_fold = (x - map_t0 + 0.5 * map_p) % map_p - 0.5 * map_p
+    sort_inds = np.argsort(x_fold)
+    #setting the light curves for plotting and residuals
+    plot_lc = lk.LightCurve(time = x_fold[sort_inds], flux = ys[sort_inds],
+        flux_err = true_err[sort_inds])
+    plt.errorbar(plot_lc.time.value, plot_lc.flux.value, yerr = plot_lc.flux_err.value,
+        color = 'k', marker = '.', linestyle = 'None')
+
+    if tess_t0_prior is not None:
+        dummy_fold = np.array(map_soln['dummy_t_tess']) - map_t0
+    else:
+        dummy_fold = np.array(map_soln['dummy_t']) - map_t0
+
+    dummy_lc = np.array(map_soln['light_curve_nominal'])
+    plt.plot(dummy_fold, dummy_lc, f'b-', zorder = 10, lw = 2)
+
+    plt.savefig(f'{plot_dir}initial_map_soln_tess.png')
+    plt.close()
+    return None
+
+def doubleplot_joint(plot_dir, x_final, y_final, yerrs_final, yerrs_list,
+    resid_final, new_map, trace, texp_list, map_t0, map_p, full_x, full_y, 
+    full_yerr, full_resid, bin_time = 5, plot_nominal = False):
+
+    matplotlib.rcParams['mathtext.fontset'] = 'cm'
+    matplotlib.rcParams['font.family'] = 'STIXGeneral'
+    matplotlib.rcParams['font.size'] = 20
+    fig, ax = plt.subplots(2, 1, figsize = (8, 8), sharex = True,
+        gridspec_kw={'height_ratios': [3, 1]})
+    minx = 0
+    maxx = 0
+
+    for i in range(len(x_final)):
+        minx = min(min(x_final[i]), minx)
+        maxx = max(max(x_final[i]), maxx)
+        plot_lc = lk.LightCurve(time = x_final[i], flux = y_final[i],
+            flux_err = yerrs_final[i])
+        plot_resid = lk.LightCurve(time = x_final[i],
+            flux = resid_final[i], flux_err = yerrs_final[i])
+
+        if i == 0:
+            m = '.'
+        elif i == 1:
+            m = '^'
+        else:
+            m = 's'
+        ax[0].errorbar(plot_lc.time.value, plot_lc.flux.value, 
+            yerr = plot_lc.flux_err.value, color = 'k', marker = m,
+            linestyle = 'None', alpha = 0.1)
+        ax[1].errorbar(plot_resid.time.value, plot_resid.flux.value,
+            yerr = plot_resid.flux_err.value, color = 'k', 
+            marker = m, linestyle = 'None', alpha = 0.1)
+
+    plot_lc = lk.LightCurve(time = full_x, flux = full_y,
+        flux_err = full_yerr)
+    bin_lc = plot_lc.bin(time_bin_size = bin_time / 1440.)
+    plot_resid = lk.LightCurve(time = full_x, 
+        flux = full_resid, flux_err = full_yerr)
+    bin_resid = plot_resid.bin(time_bin_size = bin_time / 1440.)
+    ax[0].errorbar(bin_lc.time.value, bin_lc.flux.value,
+        yerr = bin_lc.flux_err.value, 
+        color = 'k', marker = '.', linestyle = 'None', ms = 5)
+    ax[1].errorbar(bin_resid.time.value, bin_resid.flux.value,
+        yerr = bin_resid.flux_err.value, 
+        color = 'k', marker = '.', linestyle = 'None', ms = 5)
+
+    #MAP wirc light curve
+    dummy_fold = new_map['dummy_t'] - map_t0
+    dummy_lc = new_map['dummy_light_curve']
+    dummy_lc_opt = new_map['light_curve_nominal']
+    ax[0].plot(dummy_fold, dummy_lc, f'r-', zorder = 10, lw = 2)
+    ax[0].plot(dummy_fold, dummy_lc_opt, f'b-', zorder = 10, lw = 2)
+
+    #68 percentile on the confidence interval
+    stacked = trace.posterior.stack(draws=("chain", "draw"))
+    lcsamps = stacked.dummy_light_curve.values
+    lower = np.percentile(lcsamps, 16, axis = 1)
+    upper = np.percentile(lcsamps, 84, axis = 1)
+    ax[0].fill_between(dummy_fold, lower, upper,
+        alpha = 0.3, facecolor = f'r', lw = 1)
+
+    ymin, ymax = ax[0].get_ylim()
+    scale = (ymax - ymin)/3
+    ax[1].set_ylim(-scale/2, scale/2)
+    ax[0].set_ylabel("Relative Flux")
+    ax[1].set_ylabel("Residual")
+    ax[1].set_xlabel("Time from Eclipse Center [d]")
+    ax[0].set_xlim(minx, maxx)
+    ax[1].set_xlim(minx, maxx)
+    fig.align_ylabels(ax)
+    fig.subplots_adjust(hspace=0)
+
+    plt.tight_layout()
+    plt.savefig(f'{plot_dir}double_plot_joint.pdf', dpi = 200,
+        bbox_inches = 'tight')
+    plt.close()
+
+    return None
+
+
