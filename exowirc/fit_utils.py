@@ -426,7 +426,8 @@ def fit_lightcurve(dump_dir, plot_dir, best_ap, background_mode,
     plot_white_light_curves(plot_dir, x, ys)
 
     print("Sampling posterior...")
-    trace = sample_model(model, map_soln, tune, draws, target_accept)
+    trace = sample_model(model, map_soln, tune, draws, target_accept,
+                         fit_tess)
     trace.posterior.to_netcdf(f'{dump_dir}posterior.nc', engine='scipy')
     print("Sampling complete!")
     new_map, ll = get_new_map(trace, get_log_like = True)
@@ -523,8 +524,8 @@ def gen_summary(dump_dir, trace, phase, ldc_val, gp = False,
         varnames += ['u']
     if gp:
         varnames += ['sigma', 'rho']
-    if plot_nominal:
-        varnames += ['mid_transit_excess_depth']
+    if plot_nominal or fit_tess:
+        varnames += ['mid_transit_excess_depth', 'comparison_depth']
     if fit_tess:
         varnames += ['u_tess', 'ror_tess', 'tess_error_scaling']
     if tess_t0_prior is not None:
@@ -715,7 +716,8 @@ def get_new_map(trace, get_log_like = False):
         return new_map, sum(ll[ind])
     return new_map
 
-def sample_model(model, map_soln, tune, draws, target_accept):
+def sample_model(model, map_soln, tune, draws, target_accept,
+                 tess_fit = False):
     """
     Samples the posterior distribution for the exoplanet light curve model.
 
@@ -744,7 +746,8 @@ def sample_model(model, map_soln, tune, draws, target_accept):
             draws=draws,
             start=map_soln,
             return_inferencedata = True,
-            target_accept=target_accept
+            target_accept=target_accept,
+            cores = 1 if tess_fit else 4
         )
         return trace
 
@@ -880,7 +883,7 @@ def make_model(x, ys, yerrs, compars, weight_guess, texp, r_star_prior,
             if fit_tess:
                 u_tess = xo.distributions.QuadLimbDark("u_tess")
                 star_tess = xo.LimbDarkLightCurve(u_tess)
-                ror_tess = pm.Uniform('ror_tess', 0, 0.3, testval = 0.1)
+                ror_tess = pm.Uniform('ror_tess', 0, 0.5, testval = 0.1)
                 if tess_t0_prior is not None:
                     t0_tess = unpack_prior('t0_tess', tess_t0_prior)
                     dummy_t_tess = pm.Deterministic("dummy_t_tess",
@@ -897,8 +900,10 @@ def make_model(x, ys, yerrs, compars, weight_guess, texp, r_star_prior,
                     axis = -1) + 1.)
                 nominal_lightcurve = pm.Deterministic("light_curve_nominal",
                     pm.math.sum(star.get_light_curve(orbit = orbit_tess,
-                    r = ror_tess*r_star, t = dummy_t_tess, texp = tess_texp),
+                    r = ror_tess*r_star, t = dummy_t_tess, texp = texp),
                     axis = -1) + 1)
+                comparison_depth = pm.Deterministic("comparison_depth",
+                        tt.min(nominal_lightcurve))
                 mid_transit = pm.Deterministic("mid_transit_excess_depth",
                     -(tt.min(dummy_lightcurve) - tt.min(nominal_lightcurve)))
             else:
@@ -906,6 +911,8 @@ def make_model(x, ys, yerrs, compars, weight_guess, texp, r_star_prior,
                     pm.math.sum(star.get_light_curve(orbit = orbit,
                     r = ror_nominal*r_star, t = dummy_t, texp = texp),
                     axis = -1) + 1)
+                comparison_depth = pm.Deterministic("comparison_depth",
+                        tt.min(nominal_lightcurve))
                 mid_transit = pm.Deterministic("mid_transit_excess_depth",
                     -(tt.min(dummy_lightcurve) - tt.min(nominal_lightcurve)))       
 
@@ -924,7 +931,12 @@ def make_model(x, ys, yerrs, compars, weight_guess, texp, r_star_prior,
             y_gp = ys[0] - systematics*lightcurve
             sigma = unpack_prior('sigma', sigma_prior)
             rho = unpack_prior('rho', rho_prior)
-            kernel = terms.Matern32Term(sigma = sigma, rho = rho)
+            tau = unpack_prior('tau', ('uniform', 1e-5, 1e-1))
+            kernel = terms.SHOTerm(
+                sigma=sigma,
+                rho = rho,
+                tau = tau
+            )
             gp = GaussianProcess(kernel, t = x,
                 diag = full_variance, quiet = True)
             gp.marginal(f"obs", observed = y_gp)
@@ -1224,6 +1236,8 @@ def make_model_joint(x_list, ys_list, yerrs_list, compars_list,
                 pm.math.sum(star.get_light_curve(orbit = orbit, 
                 r = ror_nominal*r_star, t = dummy_t, texp = texps[0]),
                 axis = -1) + 1)
+            comparison_depth = pm.Deterministic("comparison_depth",
+                        tt.min(nominal_lightcurve))
             mid_transit = pm.Deterministic("mid_transit_excess_depth", 
                 -(tt.min(dummy_lightcurve) - tt.min(nominal_lightcurve)))
 
@@ -1258,7 +1272,7 @@ def make_model_joint(x_list, ys_list, yerrs_list, compars_list,
 
 def calculate_ldcs(teff, logg, z):
     #reading filter transmission curve
-    fname = '/Users/shrey/Desktop/My Papers/Helium Paper 1 (W69, W52)/'+\
+    fname = '/Users/shrey/Desktop/Papers/Helium Paper 1 (W69, W52)/'+\
         'Data Behind the Figure/filter_transmission_function.csv'
     data = np.genfromtxt(fname, delimiter=',', skip_header = 1)
     lab_filter_wavs = data[:,1]
