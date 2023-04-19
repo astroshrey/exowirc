@@ -529,7 +529,7 @@ def gen_summary(dump_dir, trace, phase, ldc_val, gp = False,
     if gp:
         varnames += ['sigma', 'rho']
     if plot_nominal or fit_tess:
-        varnames += ['mid_transit_excess_depth', 'comparison_depth']
+        varnames += ['mid_transit_excess_depth', 'wirc_depth', 'comparison_depth']
     if fit_tess:
         varnames += ['u_tess', 'ror_tess', 'tess_error_scaling']
     if tess_t0_prior is not None:
