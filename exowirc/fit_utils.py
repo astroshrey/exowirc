@@ -903,7 +903,9 @@ def make_model(x, ys, yerrs, compars, weight_guess, texp, r_star_prior,
                     r = ror_tess*r_star, t = dummy_t_tess, texp = texp),
                     axis = -1) + 1)
                 comparison_depth = pm.Deterministic("comparison_depth",
-                        tt.min(nominal_lightcurve))
+                        (1 - tt.min(nominal_lightcurve)))
+                wirc_depth = pm.Deterministic("wirc_depth",
+                        (1 - tt.min(dummy_lightcurve)))
                 mid_transit = pm.Deterministic("mid_transit_excess_depth",
                     -(tt.min(dummy_lightcurve) - tt.min(nominal_lightcurve)))
             else:
@@ -912,7 +914,9 @@ def make_model(x, ys, yerrs, compars, weight_guess, texp, r_star_prior,
                     r = ror_nominal*r_star, t = dummy_t, texp = texp),
                     axis = -1) + 1)
                 comparison_depth = pm.Deterministic("comparison_depth",
-                        tt.min(nominal_lightcurve))
+                        (1 - tt.min(nominal_lightcurve)))
+                wirc_depth = pm.Deterministic("wirc_depth",
+                        (1 - tt.min(dummy_lightcurve))) 
                 mid_transit = pm.Deterministic("mid_transit_excess_depth",
                     -(tt.min(dummy_lightcurve) - tt.min(nominal_lightcurve)))       
 
