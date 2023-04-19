@@ -153,6 +153,129 @@ def trace_plot(plot_dir, data, varnames):
     plt.close()
     return None
 
+def side_by_side(plot_dir, dump_dir, x, ys, yerrs, compars, detrended_data,
+    new_map, trace, texp, map_t0, map_p, tess_x, tess_ys, tess_yerrs, tess_texp,
+    phase = 'primary', bin_time = 10,
+    gp = False, fixed_jitter = None, plot_nominal = False, baseline = None,
+    fit_tess = False):
+    #bin_time in mins
+
+    matplotlib.rcParams['mathtext.fontset'] = 'cm'
+    matplotlib.rcParams['font.family'] = 'STIXGeneral'
+    matplotlib.rcParams['font.size'] = 20
+    fig, ax = plt.subplots(2, 2, figsize = (16, 8), sharex = 'col', sharey = 'row',
+        gridspec_kw={'height_ratios': [3, 1]})
+
+    #MAP lightcurve and reduction
+    lc = np.array(new_map[f'light_curve'])
+    if fixed_jitter is None:
+        true_err = np.sqrt(yerrs[0]**2 + float(new_map[f"jitter"])**2)
+    else:
+        true_err = np.sqrt(yerrs[0]**2 + fixed_jitter**2)
+    #if phase == 'primary':
+    x_fold = (x - map_t0 + 0.5 * map_p) % map_p - 0.5 * map_p
+    #else:
+    #	x_fold = (x - map_t0) % map_p - 0.5 * map_p
+
+    if gp:
+        ax[0,0].plot(x_fold, 1+baseline, color = 'g', linestyle = '-', lw = 1)
+
+	#setting the light curves for plotting and residuals
+    plot_lc = lk.LightCurve(time = x_fold, flux = detrended_data,
+        flux_err = true_err)
+    bin_lc = plot_lc.bin(time_bin_size = bin_time / 1440.)
+    plot_resid = lk.LightCurve(time = x_fold, flux = detrended_data - lc,
+        flux_err = true_err)
+    bin_resid = plot_resid.bin(time_bin_size = bin_time / 1440.)
+
+    #plotting light curve and residuals, unbinned and binned
+    ax[0,0].errorbar(x_fold, detrended_data, yerr = true_err,
+        color = 'k', marker = '.', linestyle = 'None', alpha = 0.1)
+    ax[0,0].errorbar(bin_lc.time.value, bin_lc.flux.value,
+        yerr = bin_lc.flux_err.value,
+        color = 'k', marker = '.', linestyle = 'None', ms = 5)
+    ax[1,0].errorbar(plot_resid.time.value, plot_resid.flux.value,
+        yerr = plot_resid.flux_err.value, color = 'k', marker = '.',
+        linestyle = 'None', alpha = 0.1)
+    ax[1,0].errorbar(bin_resid.time.value, bin_resid.flux.value,
+        yerr = bin_resid.flux_err.value, color = 'k', marker = '.',
+        linestyle = 'None', ms = 5)
+
+    #MAP wirc light curve
+    dummy_fold = new_map['dummy_t'] - map_t0
+    dummy_lc = new_map['dummy_light_curve']
+    ax[0,0].plot(dummy_fold, dummy_lc, f'r-', zorder = 10, lw = 2)
+    #68 percentile on the confidence interval
+    stacked = trace.posterior.stack(draws=("chain", "draw"))
+    lcsamps = stacked.dummy_light_curve.values
+    lower = np.percentile(lcsamps, 16, axis = 1)
+    upper = np.percentile(lcsamps, 84, axis = 1)
+    ax[0,0].fill_between(dummy_fold, lower, upper,
+        alpha = 0.3, facecolor = f'r', lw = 1)
+
+
+    minx = min(x_fold)
+    maxx = max(x_fold)
+    ymin, ymax = ax[0,0].get_ylim()
+    scale = (ymax - ymin)/3
+    ax[1,0].set_ylim(-scale/2, scale/2)
+    ax[0,0].set_ylabel("Relative Flux")
+    ax[1,0].set_ylabel("Residual")
+    ax[1,0].set_xlabel("Time from Eclipse Center [d]")
+    ax[0,0].set_xlim(minx, maxx)
+    ax[1,0].set_xlim(minx, maxx)
+
+    ####TESS LIGHTCURVE######
+
+    #MAP lightcurve and reduction
+    lc = np.array(new_map[f'light_curve_TESS'])
+    true_err = tess_yerrs*float(new_map[f'tess_error_scaling'])
+    x_fold = (tess_x - map_t0 + 0.5 * map_p) % map_p - 0.5 * map_p
+    sort_inds = np.argsort(x_fold)
+    #setting the light curves for plotting and residuals
+    plot_lc = lk.LightCurve(time = x_fold[sort_inds], flux = tess_ys[sort_inds],
+        flux_err = true_err[sort_inds])
+    bin_lc = plot_lc.bin(time_bin_size = bin_time / 1440.)
+    plot_resid = lk.LightCurve(time = x_fold[sort_inds], 
+        flux = tess_ys[sort_inds] - lc[sort_inds], flux_err = true_err[sort_inds])
+    bin_resid = plot_resid.bin(time_bin_size = bin_time / 1440.)
+
+    #plotting light curve and residuals, unbinned and binned
+    ax[0,1].errorbar(x_fold, tess_ys, yerr = true_err,
+        color = 'k', marker = '.', linestyle = 'None', alpha = 0.01)
+    ax[0,1].errorbar(bin_lc.time.value, bin_lc.flux.value,
+        yerr = bin_lc.flux_err.value,
+        color = 'k', marker = '.', linestyle = 'None', ms = 5, zorder = 5)
+    ax[1,1].errorbar(plot_resid.time.value, plot_resid.flux.value,
+        yerr = plot_resid.flux_err.value, color = 'k', marker = '.',
+        linestyle = 'None', alpha = 0.01)
+    ax[1,1].errorbar(bin_resid.time.value, bin_resid.flux.value,
+        yerr = bin_resid.flux_err.value, color = 'k', marker = '.',
+        linestyle = 'None', ms = 5, zorder = 5)
+
+    #MAP tess light curve
+    ax[0,1].plot(x_fold[sort_inds], lc[sort_inds], f'b-', zorder = 10, lw = 2)
+    #68 percentile on the confidence interval
+    stacked = trace.posterior.stack(draws=("chain", "draw"))
+    lcsamps = stacked.light_curve_TESS.values
+    lower = np.percentile(lcsamps, 16, axis = 1)
+    upper = np.percentile(lcsamps, 84, axis = 1)
+    ax[0,1].fill_between(x_fold[sort_inds], lower[sort_inds], upper[sort_inds],
+        alpha = 0.3, facecolor = f'b', lw = 1)
+
+    fig.align_ylabels(ax)
+    fig.subplots_adjust(hspace=0)
+    ax[0,1].set_xlim(-0.2, 0.2)
+    ax[1,1].set_xlim(-0.2, 0.2)
+    ax[0,0].set_title("WIRC", pad = 10)
+    ax[0,1].set_title("TESS", pad = 10)
+
+    plt.tight_layout()
+    plt.savefig(f'{plot_dir}side_by_side.pdf', dpi = 200,
+        bbox_inches = 'tight')
+    plt.close()
+    return None
+
 def doubleplot(plot_dir, dump_dir, x, ys, yerrs, compars, detrended_data,
     new_map, trace, texp, map_t0, map_p, phase = 'primary', bin_time = 10,
     gp = False, fixed_jitter = None, plot_nominal = False, baseline = None, 
@@ -397,11 +520,6 @@ def plot_tess(plot_dir, x, ys, yerrs, new_map, trace, texp, map_t0, map_p,
         linestyle = 'None', ms = 5, zorder = 5)
 
     #MAP wirc light curve
-    #if tess_t0_prior is not None:
-    #    dummy_fold = new_map['dummy_t_tess'] - map_t0
-    #else:
-    #    dummy_fold = new_map['dummy_t'] - map_t0
-    #dummy_lc = new_map['light_curve_nominal']
     ax[0].plot(x_fold[sort_inds], lc[sort_inds], f'b-', zorder = 10, lw = 2)
     #68 percentile on the confidence interval
     stacked = trace.posterior.stack(draws=("chain", "draw"))

@@ -17,7 +17,7 @@ from .io_utils import load_phot_data
 from .plot_utils import trace_plot, corner_plot, plot_aperture_opt, \
     plot_quickfit, plot_covariates, plot_initial_map, tripleplot,\
     plot_outlier_rejection, plot_white_light_curves, tripleplot_joint,\
-    plot_tess, doubleplot, plot_initial_map_tess, doubleplot_joint
+    plot_tess, side_by_side, doubleplot, plot_initial_map_tess, doubleplot_joint
 
 def clean_up(x, ys, yerrs, compars, weight_guess, cutoff_frac,
     end_num, filter_width, sigma_cut, plot = False, plot_dir = None,
@@ -472,6 +472,10 @@ def fit_lightcurve(dump_dir, plot_dir, best_ap, background_mode,
             t0 = float(new_map["t0_tess"])
         plot_tess(plot_dir, tess_x, tess_y, tess_yerr, new_map, trace,
             tess_texp, t0, p, tess_t0_prior, bin_time)
+        side_by_side(plot_dir, dump_dir, x, ys, yerrs, compars, detrended_data,
+            new_map, trace, texp, t0, p, tess_x, tess_y, tess_yerr, tess_texp,
+            bin_time = bin_time, phase = phase, gp = gp, fixed_jitter = fixed_jitter,
+            plot_nominal = plot_nominal, baseline = baseline, fit_tess = fit_tess)
     print("Fitting complete!")
     if return_bic:
         jit = new_map[f"jitter"] if fixed_jitter is None else fixed_jitter
