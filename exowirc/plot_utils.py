@@ -222,6 +222,7 @@ def side_by_side(plot_dir, dump_dir, x, ys, yerrs, compars, detrended_data,
     ax[0,0].set_ylabel("Relative Flux")
     ax[1,0].set_ylabel("Residual")
     ax[1,0].set_xlabel("Time from Eclipse Center [d]")
+    ax[1,1].set_xlabel("Time from Eclipse Center [d]")
     ax[0,0].set_xlim(minx, maxx)
     ax[1,0].set_xlim(minx, maxx)
 
@@ -342,6 +343,7 @@ def side_by_side_joint(plot_dir, x_final, y_final, yerrs_final, yerrs_list,
     ax[0,0].set_ylabel("Relative Flux")
     ax[1,0].set_ylabel("Residual")
     ax[1,0].set_xlabel("Time from Eclipse Center [d]")
+    ax[1,1].set_xlabel("Time from Eclipse Center [d]")
     ax[0,0].set_xlim(minx, maxx)
     ax[1,0].set_xlim(minx, maxx)
 
