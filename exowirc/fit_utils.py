@@ -17,7 +17,8 @@ from .io_utils import load_phot_data
 from .plot_utils import trace_plot, corner_plot, plot_aperture_opt, \
     plot_quickfit, plot_covariates, plot_initial_map, tripleplot,\
     plot_outlier_rejection, plot_white_light_curves, tripleplot_joint,\
-    plot_tess, side_by_side, doubleplot, plot_initial_map_tess, doubleplot_joint
+    plot_tess, side_by_side, side_by_side_joint, doubleplot, \
+    plot_initial_map_tess, doubleplot_joint
 
 def clean_up(x, ys, yerrs, compars, weight_guess, cutoff_frac,
     end_num, filter_width, sigma_cut, plot = False, plot_dir = None,
@@ -1025,7 +1026,8 @@ def fit_lightcurve_joint(dump_dirs, plot_dir, best_aps, background_modes,
     flux_cutoffs = [0.], end_nums = [0], filter_widths = [31],
     sigma_cuts = [5], sigma_cut_init = 10, 
     sigma_prior = None, rho_prior = None,
-    ror_nominal = None):
+    ror_nominal = None, tess_x = None, tess_y = None, tess_yerr = None,
+    tess_texp = None, tess_t0_prior = None):
     """
     The main function used to fit the target light curve and find the best-fit transit model parameters.
 
@@ -1033,6 +1035,9 @@ def fit_lightcurve_joint(dump_dirs, plot_dir, best_aps, background_modes,
     ----------
 
     """
+    fit_tess = (tess_x is not None) and (tess_y is not None) and \
+        (tess_yerr is not None) and (tess_texp is not None)
+
     x_list, ys_list, yerrs_list, compars_list, weight_guess_list = [],[],[],[],[]
     n_datasets = len(dump_dirs)
     for i, (dump_dir, best_ap, background_mode, covariate_names, texp, \
@@ -1067,38 +1072,6 @@ def fit_lightcurve_joint(dump_dirs, plot_dir, best_aps, background_modes,
         compars_list.append(compars)
         weight_guess_list.append(weight_guess)
 
-    '''
-    mask = np.zeros(x.shape, dtype = bool)
-    i = 0
-    #refitting the MAP with iterative sigma clipping until no new outliers found
-    while sum(~mask) > 0:
-        i += 1
-        if i == 1:
-            print("Constructing model...")
-        else:
-            print("Refitting MAP...")
-        model, map_soln = make_model(x, ys, yerrs, compars, weight_guess,
-            texp, r_star_prior, t0_prior, period_prior,
-            a_rs_prior, b_prior, jitter_prior, phase, ror_prior,
-            fpfs_prior, ldc_val, gp, sigma_prior, rho_prior,
-            ror_nominal, tess_x, tess_y, tess_yerr, tess_texp,
-            fixed_jitter = fixed_jitter, tess_t0_prior = tess_t0_prior)
-        plot_initial_map(plot_dir, x, ys, yerrs, compars, map_soln, gp,
-            fixed_jitter)
-        if fit_tess:
-            plot_initial_map_tess(plot_dir, tess_x, tess_y, tess_yerr, map_soln,
-                    tess_t0_prior)
-        print("Initial MAP found!")
-        if refit:
-            x, ys, yerrs, compars, mask = clean_after_map(x, ys, yerrs,
-                compars, map_soln, sigma_cut, plot = True,
-                plot_dir = plot_dir, extra_tag = i)
-        else:
-            mask = np.ones(x.shape, dtype = bool)
-    print("MAP found!")
-    plot_white_light_curves(plot_dir, x, ys)
-
-    '''
     masks = [np.zeros(x.shape, dtype = bool) for x in x_list]
     j = 0
     mask_sums = [sum(~mask_i) for mask_i in masks]
@@ -1111,13 +1084,18 @@ def fit_lightcurve_joint(dump_dirs, plot_dir, best_aps, background_modes,
         ##model in pymc3
         model, map_soln = make_model_joint(x_list, ys_list, yerrs_list,
             compars_list, weight_guess_list, texps, r_star_prior, t0_prior,
-            period_prior, a_rs_prior, b_prior, jitter_prior, ror_prior,
-            ldc_val, ror_nominal)
+            period_prior, a_rs_prior, b_prior, jitter_prior,
+            ror_prior = ror_prior, ldc_val = ldc_val, ror_nominal = ror_nominal, 
+            tess_x = tess_x, tess_y = tess_y, tess_yerr = tess_yerr, 
+            tess_texp = tess_texp, tess_t0_prior = tess_t0_prior)
         for i, (x, ys, yerrs, compars) in enumerate(zip(x_list, \
             ys_list, yerrs_list, compars_list)):
 
             plot_initial_map(plot_dir, x, ys, yerrs, compars, 
                     map_soln, gp = False, joint = True, joint_num = i)
+            if fit_tess:
+                plot_initial_map_tess(plot_dir, tess_x, tess_y, tess_yerr, map_soln,
+                       tess_t0_prior)
             x, ys, yerrs, compars, mask = clean_after_map(x, ys, yerrs,
                 compars, map_soln, sigma_cut, plot = True,
                 plot_dir = plot_dir, extra_tag = str(j),
@@ -1134,14 +1112,15 @@ def fit_lightcurve_joint(dump_dirs, plot_dir, best_aps, background_modes,
         plot_white_light_curves(plot_dir, x, ys, tag = f'_{i}')
 
     print("Sampling posterior...")
-    trace = sample_model(model, map_soln, tune, draws, target_accept)
+    trace = sample_model(model, map_soln, tune, draws, target_accept, fit_tess)
     trace.posterior.to_netcdf(f'{plot_dir}posterior.nc', engine='scipy')
     print("Sampling complete!")
 
     print("Making corner and trace plots...") 
     plot_nominal = ror_nominal is not None
     summary, varnames = gen_summary(plot_dir, trace, phase, ldc_val,
-        False, plot_nominal, joint = len(x_list))
+        False, plot_nominal, fit_tess = fit_tess, 
+        tess_t0_prior = tess_t0_prior, joint = len(x_list))
     gen_latex_table(plot_dir, summary)
     trace_plot(plot_dir, trace, varnames)
     corner_plot(plot_dir, trace, varnames)
@@ -1164,6 +1143,17 @@ def fit_lightcurve_joint(dump_dirs, plot_dir, best_aps, background_modes,
         full_x, full_y, full_yerr, full_resid,
         bin_time = bin_time, plot_nominal = plot_nominal)
     gen_lightcurve_table(plot_dir, full_x, full_y, full_yerr)
+    if fit_tess:
+        if tess_t0_prior is not None:
+            t0 = float(new_map["t0_tess"])
+        plot_tess(plot_dir, tess_x, tess_y, tess_yerr, new_map, trace,
+            tess_texp, t0, p, tess_t0_prior, bin_time)
+        side_by_side_joint(plot_dir, x_final, y_final, yerr_final, yerrs_list, 
+            resid_final, new_map, trace, texps, t0, p, full_x, full_y, full_yerr,
+            full_resid, tess_x, tess_y, tess_yerr, tess_texp, bin_time = bin_time, 
+            plot_nominal = plot_nominal)
+ 
+
     print("Fitting complete!")
     return None    
 
@@ -1205,14 +1195,19 @@ def fully_fold(x_list, ys_list, yerrs_list, compars_list,
 
 def make_model_joint(x_list, ys_list, yerrs_list, compars_list, 
     weight_guess_list, texps, r_star_prior, t0_prior, period_prior,
-    a_rs_prior, b_prior, jitter_prior, ror_prior = None,
-    ldc_val = None, ror_nominal = None, nominal_bounds = (-0.2, 0.2)):
+    a_rs_prior, b_prior, jitter_prior, tess_x = None, tess_y = None,
+    tess_yerr = None, tess_texp = None, tess_t0_prior = None, 
+    ror_prior = None, ldc_val = None, ror_nominal = None,
+    nominal_bounds = (-0.2, 0.2)):
     """
     Generates the light curve model with exoplanet.
 
 
     """
     ##currently doing circular orbits ONLY
+
+    fit_tess = (tess_x is not None) and (tess_y is not None) and \
+        (tess_yerr is not None) and (tess_texp is not None)
 
     with pm.Model() as model:
         if ldc_val:
@@ -1239,15 +1234,44 @@ def make_model_joint(x_list, ys_list, yerrs_list, compars_list,
         dummy_lightcurve = pm.Deterministic("dummy_light_curve",
             pm.math.sum(star.get_light_curve(orbit = orbit, 
             r = ror*r_star, t = dummy_t, texp = texps[0]), axis = -1) + 1)
-        if ror_nominal is not None:
-            nominal_lightcurve = pm.Deterministic("light_curve_nominal",
-                pm.math.sum(star.get_light_curve(orbit = orbit, 
-                r = ror_nominal*r_star, t = dummy_t, texp = texps[0]),
-                axis = -1) + 1)
-            comparison_depth = pm.Deterministic("comparison_depth",
-                        tt.min(nominal_lightcurve))
-            mid_transit = pm.Deterministic("mid_transit_excess_depth", 
-                -(tt.min(dummy_lightcurve) - tt.min(nominal_lightcurve)))
+        if ror_nominal is not None or fit_tess:
+            if fit_tess:
+                u_tess = xo.distributions.QuadLimbDark("u_tess")
+                star_tess = xo.LimbDarkLightCurve(u_tess)
+                ror_tess = pm.Uniform('ror_tess', 0, 0.5, testval = 0.1)
+                if tess_t0_prior is not None:
+                    t0_tess = unpack_prior('t0_tess', tess_t0_prior)
+                    dummy_t_tess = pm.Deterministic("dummy_t_tess",
+                            t0_tess + arr)
+                    orbit_tess = xo.orbits.KeplerianOrbit(period = period,
+                        t0 = t0_tess, b = b, a = a_rs*r_star,
+                        r_star = r_star)
+                else:
+                    orbit_tess = orbit
+                    dummy_t_tess = dummy_t
+                lightcurve_tess = pm.Deterministic("light_curve_TESS",
+                    pm.math.sum(star_tess.get_light_curve(orbit=orbit_tess,
+                    r = ror_tess*r_star, t = tess_x, texp = tess_texp),
+                    axis = -1) + 1.)
+                nominal_lightcurve = pm.Deterministic("light_curve_nominal",
+                    pm.math.sum(star.get_light_curve(orbit = orbit_tess,
+                    r = ror_tess*r_star, t = dummy_t_tess, texp = texps[0]),
+                    axis = -1) + 1)
+                comparison_depth = pm.Deterministic("comparison_depth",
+                        (1 - tt.min(nominal_lightcurve)))
+                wirc_depth = pm.Deterministic("wirc_depth",
+                        (1 - tt.min(dummy_lightcurve)))
+                mid_transit = pm.Deterministic("mid_transit_excess_depth",
+                    -(tt.min(dummy_lightcurve) - tt.min(nominal_lightcurve)))
+            else:
+                nominal_lightcurve = pm.Deterministic("light_curve_nominal",
+                    pm.math.sum(star.get_light_curve(orbit = orbit, 
+                    r = ror_nominal*r_star, t = dummy_t, texp = texps[0]),
+                    axis = -1) + 1)
+                comparison_depth = pm.Deterministic("comparison_depth",
+                    tt.min(nominal_lightcurve))
+                mid_transit = pm.Deterministic("mid_transit_excess_depth", 
+                    -(tt.min(dummy_lightcurve) - tt.min(nominal_lightcurve)))
 
         for i in range(len(x_list)):
             lightcurve = pm.Deterministic(f"light_curve_{i}", pm.math.sum(
@@ -1261,18 +1285,16 @@ def make_model_joint(x_list, ys_list, yerrs_list, compars_list,
             systematics = pm.math.dot(comp_weights, compars_list[i])
             jitter = unpack_prior(f'jitter_{i}', jitter_prior)
             full_variance = yerrs_list[i][0]**2 + jitter**2
-            #baseline
-            #vec = x_list[i] - np.mean(x_list[i])
-            #base = pm.Uniform(f"baseline_{i}", -2, 2., shape = 2,
-            #    testval = np.array([0.,0.]))
-            #baseline = base[0]*vec + base[1]
-
-            #full_model = baseline + systematics*lightcurve
             full_model = systematics*lightcurve
             pm.Deterministic(f"full_model_{i}", full_model)
             pm.Normal(f"obs_{i}", mu=full_model,
                 sd=np.sqrt(full_variance), observed=ys_list[i][0])
-  
+        if fit_tess:
+            err_scale = pm.Uniform('tess_error_scaling', 0.5, 1.5,
+                testval = 1.)
+            pm.Normal("tess_obs", mu = lightcurve_tess,
+                sd = tess_yerr*err_scale, observed = tess_y)  
+ 
         map_soln = model.test_point
         map_soln = pmx.optimize(map_soln)
 
